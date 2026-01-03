@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>MOL Limo – terv (gyalog + autó)</title>
+  <title>MOL Limo – több lépéses terv (gyalog + autó)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,18 +28,6 @@
     html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
     #map{height:100%;width:100%;}
 
-    .hud{
-      position:fixed; top:10px; left:10px; right:10px;
-      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-      padding:10px;
-      background:var(--panel);
-      border:1px solid var(--border);
-      border-radius:14px;
-      backdrop-filter:blur(10px);
-      z-index:9999;
-    }
-    .hud .sp{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-
     .btn{
       border:1px solid var(--border);
       background:rgba(15,23,42,.72);
@@ -51,6 +39,7 @@
       line-height:1;
       -webkit-tap-highlight-color:transparent;
       user-select:none;
+      cursor:pointer;
     }
     .btn:active{transform:translateY(1px);}
     .btn.primary{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.35);}
@@ -68,7 +57,33 @@
       white-space:nowrap;
     }
 
-    /* ✅ teljes szöveg fekete sávban */
+    /* ===== HUD ===== */
+    .hud{
+      position:fixed; top:10px; left:10px; right:10px;
+      padding:10px;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:14px;
+      backdrop-filter:blur(10px);
+      z-index:9999;
+    }
+    .hudRow{
+      width:100%;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .hudRow .pill{ margin-left:auto; }
+    .hudMore{
+      width:100%;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+
+    /* ===== Bottom sheet (planbar) ===== */
     .planbar{
       position:fixed;
       left:10px; right:10px; bottom:10px;
@@ -92,18 +107,43 @@
     }
     .hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:10px 0;}
 
+    .sheetCollapsed{ transform: translateY(calc(100% - 68px)); }
+    .sheetHandle{
+      height: 22px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      user-select:none;
+    }
+    .sheetHandle::before{
+      content:"";
+      width: 44px;
+      height: 5px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.28);
+      display:block;
+    }
+    .sheetTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    /* Popup style */
     .leaflet-popup-content-wrapper,.leaflet-popup-tip{
       background: rgba(10,14,25,.92)!important;
       color: var(--text)!important;
       border:1px solid rgba(255,255,255,.12);
     }
     .leaflet-popup-close-button{color:var(--muted)!important;}
-
     .popup h3{margin:0 0 6px 0;font-size:16px;}
     .popup .meta{font-size:13px;color:var(--muted);margin-bottom:10px;}
     .popup .row{display:flex;gap:8px;flex-wrap:wrap;}
     .popup .row .btn{padding:9px 10px;font-size:13px;}
 
+    /* Car icon */
     .carIcon{
       width:46px;height:46px;border-radius:16px;
       background:rgba(2,6,23,.78);
@@ -122,14 +162,9 @@
       white-space:nowrap;
     }
     .carIcon.hasGoals{outline:3px solid rgba(239,68,68,.35);}
-    .carIcon.nearest{
-      outline:4px solid rgba(34,197,94,.78);
-      animation:pulseG 1.2s infinite;
-    }
-    .carIcon.bestPlan{
-      outline:4px solid rgba(96,165,250,.80);
-      animation:pulseB 1.2s infinite;
-    }
+    .carIcon.selected{outline:3px solid rgba(245,158,11,.78);}
+    .carIcon.nearest{ outline:4px solid rgba(34,197,94,.78); animation:pulseG 1.2s infinite; }
+    .carIcon.bestPlan{ outline:4px solid rgba(96,165,250,.80); animation:pulseB 1.2s infinite; }
     @keyframes pulseG{
       0%{box-shadow:0 0 0 0 rgba(34,197,94,.28);}
       70%{box-shadow:0 0 0 16px rgba(34,197,94,0);}
@@ -141,7 +176,7 @@
       100%{box-shadow:0 0 0 0 rgba(96,165,250,0);}
     }
 
-    /* ✅ célpont felett rendszám */
+    /* Goal icon: plate + number */
     .goalWrap{
       display:flex; flex-direction:column; align-items:center; gap:4px;
       transform: translateY(-2px);
@@ -166,7 +201,7 @@
       box-shadow:0 10px 24px rgba(0,0,0,.28);
     }
 
-    /* rövid térképcímke (nem a teljes szöveg, mert az a fekete sávban van) */
+    /* Short labels on map */
     .routeLabel{
       background:rgba(0,0,0,.82);
       border:1px solid rgba(255,255,255,.14);
@@ -179,7 +214,7 @@
       box-shadow:0 10px 24px rgba(0,0,0,.25);
     }
 
-    /* célpont mód jelzés – nincs "Kész", automatikusan vált */
+    /* Goal mode badge */
     .goalModeBadge{
       position:fixed;
       left:10px; right:10px; top:76px;
@@ -195,22 +230,141 @@
       font-weight:900;
     }
     .goalModeBadge .muted{font-weight:700;color:rgba(229,231,235,.8);}
+
+    /* ===== Drawer (car list) ===== */
+    .overlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.45);
+      z-index: 10000;
+      display:none;
+    }
+    .drawer{
+      position:fixed;
+      top:10px; bottom:10px; left:10px;
+      width:min(420px, calc(100vw - 20px));
+      background: rgba(10,14,25,.96);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;
+      z-index:10001;
+      display:none;
+      overflow:hidden;
+      box-shadow:0 22px 60px rgba(0,0,0,.55);
+    }
+    .drawerHeader{
+      padding:12px;
+      border-bottom:1px solid rgba(255,255,255,.12);
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .drawerHeader .left{
+      display:flex; flex-direction:column; gap:4px;
+    }
+    .drawerHeader .hTitle{ font-weight:1000; }
+    .drawerHeader .hSub{ color:var(--muted); font-size:12px; }
+    .drawerBody{ padding:12px; display:flex; flex-direction:column; gap:10px; height: calc(100% - 64px); }
+    .search{
+      width:100%;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid rgba(148,163,184,.25);
+      background: rgba(15,23,42,.55);
+      color: var(--text);
+      font-weight:800;
+      outline:none;
+    }
+    .carList{
+      flex:1;
+      overflow:auto;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding-right:4px;
+    }
+    .carRow{
+      border:1px solid rgba(148,163,184,.18);
+      background: rgba(15,23,42,.38);
+      border-radius:14px;
+      padding:10px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .carRow .chk{
+      width:20px;height:20px; margin-top:2px;
+      accent-color: #f59e0b;
+    }
+    .carRow .main{ flex:1; display:flex; flex-direction:column; gap:4px; }
+    .carRow .plate{ font-weight:1000; }
+    .carRow .meta{ color:var(--muted); font-size:12px; }
+    .carRow .tags{ display:flex; gap:8px; flex-wrap:wrap; }
+    .tag{
+      font-size:12px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(2,6,23,.35);
+      color:#e5e7eb;
+    }
+    .tag.goals{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.12); }
+    .tag.hidden{ border-color: rgba(148,163,184,.25); opacity:.8; }
+    .carRow .actions{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .carRow .actions .btn{ padding:9px 10px; font-size:12px; border-radius:12px; }
+
+    /* ===== Mobile UX ===== */
+    @media (max-width: 520px){
+      .hud{ padding:10px; border-radius:16px; }
+      .hudMore{ display:none; }
+      .hudMore.open{ display:flex; }
+
+      .hudRow .btn{
+        flex: 1 1 32%;
+        padding:12px 10px;
+        font-size:14px;
+      }
+      .hudRow .pill{
+        width:100%;
+        margin-left:0;
+        text-align:center;
+      }
+
+      .planbar{
+        bottom: calc(10px + env(safe-area-inset-bottom));
+        max-height: 70vh;
+        padding: 10px;
+        border-radius: 18px;
+      }
+      .sheetTop .title{ font-size:16px; }
+      .sheetTop .btn{ padding:10px 10px; font-size:13px; }
+
+      .drawer{
+        left:10px; right:10px;
+        width:auto;
+      }
+    }
   </style>
 </head>
 
 <body>
 <div id="map"></div>
 
-<div class="hud">
-  <button class="btn" id="btnRefresh">Frissítés</button>
-  <button class="btn ghost" id="btnZones">Zónák: KI</button>
-  <button class="btn warn" id="btnNearest">Hozzám legközelebbi</button>
-  <button class="btn" id="btnShowAll">Összes autó</button>
-  <span class="pill" id="pillStatus">—</span>
-
-  <div class="sp">
+<!-- HUD -->
+<div class="hud" id="hud">
+  <div class="hudRow">
+    <button class="btn" id="btnRefresh">Frissítés</button>
+    <button class="btn ghost" id="btnZones">Zónák: KI</button>
     <button class="btn primary" id="btnPlan">Tervezés</button>
     <button class="btn" id="btnMe">Én</button>
+    <button class="btn ghost" id="btnMore">Több…</button>
+    <span class="pill" id="pillStatus">—</span>
+  </div>
+
+  <div class="hudMore" id="hudMore">
+    <button class="btn" id="btnCarList">Autólista</button>
+    <button class="btn warn" id="btnNearest">Hozzám legközelebbi</button>
+    <button class="btn" id="btnShowAll">Összes autó</button>
     <button class="btn danger" id="btnUnhideAll">Rejtettek vissza</button>
     <button class="btn danger" id="btnClearAllGoals">Célpontok törlése</button>
   </div>
@@ -221,8 +375,29 @@
   <span class="muted">– koppints a térképre (váltás: másik autóra katt)</span>
 </div>
 
-<div class="planbar">
-  <div class="title" id="planTitle">Készen áll</div>
+<!-- Drawer -->
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawerHeader">
+    <div class="left">
+      <div class="hTitle">Autók</div>
+      <div class="hSub" id="drawerSub">—</div>
+    </div>
+    <button class="btn ghost" id="btnDrawerClose">Bezár</button>
+  </div>
+  <div class="drawerBody">
+    <input class="search" id="carSearch" placeholder="Keresés (rendszám / típus)…" />
+    <div class="carList" id="carList"></div>
+  </div>
+</div>
+
+<!-- Bottom sheet -->
+<div class="planbar sheetCollapsed" id="planbar">
+  <div class="sheetHandle" id="sheetHandle"></div>
+  <div class="sheetTop">
+    <div class="title" id="planTitle">Készen áll</div>
+    <button class="btn ghost" id="btnSheetToggle">▲</button>
+  </div>
   <div class="small" id="planSub">Autóra katt → célpont mód, majd Tervezés.</div>
   <div id="planDetails" class="small"></div>
 </div>
@@ -237,12 +412,11 @@
   const CITY_ID_BUDAPEST = "8ee26110-d8e9-4e0d-b4b7-e76fd4e00459";
 
   const REFRESH_MS = 20000;
-  const GOAL_ZONE_RADIUS_M = 220;
+  const GOAL_ZONE_RADIUS_M = 350; // 300–400m közép
   const NEAREST_CANDIDATES = 18;
   const MAX_PLAN_CARS = 10;
   const MAX_GOALS_PER_CAR = 12;
 
-  // ✅ külön gyalog router + fallback
   const WALK_ENGINES = [
     { base: "https://routing.openstreetmap.de/routed-foot", profile: "foot" },
     { base: "https://router.project-osrm.org", profile: "foot" }
@@ -251,13 +425,12 @@
     { base: "https://router.project-osrm.org", profile: "driving" }
   ];
 
-  // elevation (ha elérhető)
   const ELEV_APIS = [
     (locStr) => `https://api.opentopodata.org/v1/srtm90m?locations=${encodeURIComponent(locStr)}`,
     (locStr) => `https://api.open-elevation.com/api/v1/lookup?locations=${encodeURIComponent(locStr)}`
   ];
 
-  const LS_KEY = "mol_limo_planner_v6";
+  const LS_KEY = "mol_limo_planner_v8";
 
   /********************
    * STATE
@@ -269,13 +442,13 @@
     lastSeenMiss: new Map(),
 
     hiddenCars: new Set(),
+    selectedCars: new Set(),  // ✅ autólista pipák
     carGoals: new Map(),
     globalGoalCounter: 0,
 
     zonesOn: false,
     zoneLayers: [],
 
-    // célpont mód
     goalModeCarId: null,
 
     cluster: null,
@@ -290,6 +463,7 @@
 
     focusMode: "none",
     focusCarIds: new Set(),
+    usedGoalIds: new Set(),
 
     plan: null,
   };
@@ -301,11 +475,7 @@
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19 }).addTo(map);
   L.control.zoom({ position:"bottomright" }).addTo(map);
 
-  S.cluster = L.markerClusterGroup({
-    showCoverageOnHover:false,
-    maxClusterRadius:55,
-    spiderfyOnMaxZoom:true
-  });
+  S.cluster = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:55, spiderfyOnMaxZoom:true });
   map.addLayer(S.cluster);
 
   S.layerWalk.addTo(map);
@@ -314,7 +484,7 @@
   S.layerNearest.addTo(map);
 
   /********************
-   * UI
+   * UI refs
    ********************/
   const $ = (id) => document.getElementById(id);
   const planTitle = $("planTitle");
@@ -323,11 +493,15 @@
   const pillStatus = $("pillStatus");
   const goalModeBadge = $("goalModeBadge");
   const goalModeText = $("goalModeText");
+  const planbarEl = $("planbar");
+  const hudMoreEl = $("hudMore");
 
-  function setPlan(t, s){
-    planTitle.textContent = t;
-    planSub.textContent = s;
-  }
+  const overlayEl = $("overlay");
+  const drawerEl = $("drawer");
+  const drawerSubEl = $("drawerSub");
+  const carSearchEl = $("carSearch");
+  const carListEl = $("carList");
+
   function setStatus(t){ pillStatus.textContent = t; }
 
   function fmtMin(sec){
@@ -345,16 +519,57 @@
   }
 
   /********************
+   * Bottom sheet controls
+   ********************/
+  let sheetOpen = false;
+  function setSheet(open){
+    sheetOpen = open;
+    if(open){
+      planbarEl.classList.remove("sheetCollapsed");
+      $("btnSheetToggle").textContent = "▼";
+    }else{
+      planbarEl.classList.add("sheetCollapsed");
+      $("btnSheetToggle").textContent = "▲";
+    }
+  }
+  $("sheetHandle").addEventListener("click", ()=> setSheet(!sheetOpen));
+  $("btnSheetToggle").addEventListener("click", ()=> setSheet(!sheetOpen));
+
+  function setPlan(t, s){
+    planTitle.textContent = t;
+    planSub.textContent = s;
+    if(String(t).toLowerCase().includes("kész")) setSheet(true);
+  }
+
+  /********************
+   * Drawer controls
+   ********************/
+  function openDrawer(){
+    overlayEl.style.display = "block";
+    drawerEl.style.display = "block";
+    renderCarList();
+    setTimeout(()=>carSearchEl.focus(), 0);
+  }
+  function closeDrawer(){
+    overlayEl.style.display = "none";
+    drawerEl.style.display = "none";
+  }
+  overlayEl.addEventListener("click", closeDrawer);
+  $("btnDrawerClose").addEventListener("click", closeDrawer);
+
+  /********************
    * localStorage
    ********************/
   function save(){
     const obj = {
       hiddenCars: Array.from(S.hiddenCars),
+      selectedCars: Array.from(S.selectedCars),
       carGoals: Array.from(S.carGoals.entries()),
       globalGoalCounter: S.globalGoalCounter,
       zonesOn: S.zonesOn,
       focusMode: S.focusMode,
       focusCarIds: Array.from(S.focusCarIds),
+      usedGoalIds: Array.from(S.usedGoalIds),
     };
     localStorage.setItem(LS_KEY, JSON.stringify(obj));
   }
@@ -364,11 +579,13 @@
       if(!raw) return;
       const obj = JSON.parse(raw);
       S.hiddenCars = new Set(obj.hiddenCars || []);
+      S.selectedCars = new Set(obj.selectedCars || []);
       S.carGoals = new Map(obj.carGoals || []);
       S.globalGoalCounter = obj.globalGoalCounter || 0;
       S.zonesOn = !!obj.zonesOn;
       S.focusMode = obj.focusMode || "none";
       S.focusCarIds = new Set(obj.focusCarIds || []);
+      S.usedGoalIds = new Set(obj.usedGoalIds || []);
     }catch{}
   }
 
@@ -403,6 +620,7 @@
   function setFocusNone(){
     S.focusMode = "none";
     S.focusCarIds = new Set();
+    S.usedGoalIds = new Set();
     save();
     refreshAllCarIcons();
     renderGoals();
@@ -423,9 +641,7 @@
     const ll = [S.me.lat, S.me.lon];
 
     if(!S.meMarker){
-      S.meMarker = L.circleMarker(ll, {
-        radius: 8, weight: 3, color:"#fff", fillColor:"#60a5fa", fillOpacity: 0.9
-      }).addTo(map);
+      S.meMarker = L.circleMarker(ll, { radius: 8, weight: 3, color:"#fff", fillColor:"#60a5fa", fillOpacity: 0.9 }).addTo(map);
       S.meMarker.bindTooltip("Én");
     } else {
       S.meMarker.setLatLng(ll);
@@ -453,7 +669,7 @@
   }
 
   /********************
-   * Cars
+   * Cars normalize
    ********************/
   function carIdFromObj(c){
     const plate = (c?.description?.plate || c?.description?.name || "").trim();
@@ -480,8 +696,9 @@
 
   function makeCarIcon(car){
     const hasGoals = carHasGoals(car.id);
+    const selected = S.selectedCars.has(car.id);
     const html = `
-      <div class="carIcon ${hasGoals ? "hasGoals" : ""}">
+      <div class="carIcon ${hasGoals ? "hasGoals" : ""} ${selected ? "selected" : ""}">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M3 13l1-5c.2-1 1-2 2-2h12c1 0 1.8 1 2 2l1 5" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
           <path d="M5 13v5m14-5v5" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
@@ -527,10 +744,8 @@
       m.setIcon(makeCarIcon(car));
     }
 
-    // ✅ mindig újrakötjük, hogy sose „haljon meg” a kattintás
     m.off("click");
     m.on("click", ()=>{
-      // ✅ célpont mód: ha aktív, és másik autóra kattintasz → automatikus váltás (nincs "Kész")
       if(S.goalModeCarId && S.goalModeCarId !== carId){
         setGoalMode(carId);
       }
@@ -542,304 +757,48 @@
     for(const carId of S.cars.keys()){
       applyCarMarker(carId);
     }
-  }
-
-  async function refreshCars(){
-    setStatus("Frissítés…");
-    try{
-      delete window.cars;
-      await loadScript(URL_CARS);
-      let arr = window.cars;
-      if(!Array.isArray(arr)) arr = arr?.cars || arr?.vehicles || arr?.data || [];
-      if(!Array.isArray(arr)) throw new Error("cars.js formátum");
-
-      const seen = new Set();
-      for(const raw of arr){
-        const car = normalizeCar(raw);
-        if(!car) continue;
-        S.cars.set(car.id, car);
-        S.lastSeenMiss.set(car.id, 0);
-        seen.add(car.id);
-      }
-
-      // ✅ ha refreshkor eltűnt a feedből: célpont törlés azonnal
-      for(const carId of Array.from(S.carGoals.keys())){
-        if(!seen.has(carId)){
-          S.carGoals.delete(carId);
-        }
-      }
-
-      for(const [carId, miss] of Array.from(S.lastSeenMiss.entries())){
-        if(seen.has(carId)) continue;
-        const m2 = (miss || 0) + 1;
-        S.lastSeenMiss.set(carId, m2);
-        if(m2 >= 2){
-          S.cars.delete(carId);
-          S.lastSeenMiss.delete(carId);
-          S.hiddenCars.delete(carId);
-          removeCarMarker(carId);
-        }
-      }
-
-      renderGoals();
-      refreshAllCarIcons();
-      save();
-
-      setStatus(`Autók: ${S.cars.size}`);
-    }catch(e){
-      console.error(e);
-      setStatus("Frissítés: HIBA");
-      setPlan("Hiba", "Nem sikerült betölteni a cars.js-t (URL token változhat).");
-    }
+    renderCarList(); // ✅ lista frissül
   }
 
   /********************
-   * Goals
+   * Clear/draw helpers
    ********************/
-  function makeGoalIcon(plate, n){
-    return L.divIcon({
-      className:"",
-      html: `
-        <div class="goalWrap">
-          <div class="goalPlate">${(plate||"")}</div>
-          <div class="goalIcon">${n}</div>
-        </div>
-      `,
-      iconSize:[1,1],
-      iconAnchor:[17,30]
-    });
-  }
+  function clearLayerGroup(g){ try{ g.clearLayers(); }catch{} }
 
-  function addGoal(carId, lat, lon){
-    if(!S.carGoals.has(carId)) S.carGoals.set(carId, []);
-    const arr = S.carGoals.get(carId);
+  function clearRoutesAll(){
+    clearLayerGroup(S.layerWalk);
+    clearLayerGroup(S.layerDrive);
+    clearLayerGroup(S.layerLabels);
+    clearLayerGroup(S.layerNearest);
+    S.plan = null;
+    planDetails.innerHTML = "";
 
-    if(arr.length >= MAX_GOALS_PER_CAR){
-      setPlan("Túl sok célpont", `Egy autóhoz max ${MAX_GOALS_PER_CAR} célpontot számolok.`);
-      return;
+    for(const [, m] of S.carMarkers.entries()){
+      const el = m.getElement()?.querySelector(".carIcon");
+      if(el){ el.classList.remove("nearest"); el.classList.remove("bestPlan"); }
     }
-
-    const id = "g_" + (++S.globalGoalCounter) + "_" + Date.now().toString(16);
-    arr.push({ id, lat, lon });
-    save();
-    renderGoals();
-    refreshAllCarIcons();
-    setPlan("Célpont hozzáadva", "Nyomj Tervezés-t a számoláshoz.");
   }
 
-  function clearGoalsForCar(carId){
-    S.carGoals.delete(carId);
-    save();
-    renderGoals();
-    refreshAllCarIcons();
-    setPlan("Célpontok törölve", "Nyomj Tervezés-t a számoláshoz.");
+  function addShortLabel(latlng, text){
+    return L.marker(latlng, {
+      icon: L.divIcon({ className:"", html:`<div class="routeLabel">${text}</div>`, iconSize:[1,1], iconAnchor:[0,0] }),
+      interactive:false
+    }).addTo(S.layerLabels);
   }
 
-  function clearAllGoals(){
-    S.carGoals.clear();
-    save();
-    renderGoals();
-    refreshAllCarIcons();
-    clearRoutesAll();
-    setFocusNone();
-    setPlan("Célpontok törölve", "Adj célpontot egy autóhoz.");
+  function drawRoute(layer, geo, opts){
+    const latlngs = geo.coordinates.map(([lon,lat])=>[lat,lon]);
+    const poly = L.polyline(latlngs, { ...opts, interactive:false }).addTo(layer);
+    return { poly, latlngs };
   }
 
-  function renderGoals(){
-    for(const [gid, o] of S.goalMarkers.entries()){
-      try{ map.removeLayer(o.marker);}catch{}
-      try{ map.removeLayer(o.circle);}catch{}
-    }
-    S.goalMarkers.clear();
-
-    for(const [carId, goals] of S.carGoals.entries()){
-      if(!goals || goals.length === 0) continue;
-      if(S.focusMode === "plan" && !S.focusCarIds.has(carId)) continue;
-
-      const plate = S.cars.get(carId)?.plate || carId;
-
-      goals.forEach((g, idx)=>{
-        const n = idx + 1;
-        const marker = L.marker([g.lat, g.lon], { icon: makeGoalIcon(plate, n) }).addTo(map);
-        const circle = L.circle([g.lat, g.lon], {
-          radius: GOAL_ZONE_RADIUS_M, color:"#ef4444", weight:2, fillOpacity:0.06, interactive:false
-        }).addTo(map);
-
-        marker.on("click", ()=>{
-          const html = `
-            <div class="popup">
-              <h3>${plate} • célpont #${n}</h3>
-              <div class="row">
-                <button class="btn danger" data-act="delGoal">Célpont törlése</button>
-              </div>
-            </div>
-          `;
-          marker.bindPopup(html, {maxWidth:320}).openPopup();
-          setTimeout(()=>{
-            const el = marker.getPopup()?.getElement();
-            if(!el) return;
-            const btn = el.querySelector('button[data-act="delGoal"]');
-            if(btn){
-              btn.addEventListener("click", ()=>{
-                const arr = S.carGoals.get(carId) || [];
-                S.carGoals.set(carId, arr.filter(x=>x.id !== g.id));
-                if((S.carGoals.get(carId)||[]).length === 0) S.carGoals.delete(carId);
-                save();
-                renderGoals();
-                refreshAllCarIcons();
-                try{ marker.closePopup(); }catch{}
-              });
-            }
-          }, 0);
-        });
-
-        S.goalMarkers.set(g.id, { marker, circle, carId });
-      });
-    }
+  function midPoint(latlngs){
+    if(!latlngs || latlngs.length === 0) return null;
+    return latlngs[Math.floor(latlngs.length/2)];
   }
 
   /********************
-   * Goal mode (no "Kész")
-   ********************/
-  function setGoalMode(carId){
-    S.goalModeCarId = carId;
-    const plate = S.cars.get(carId)?.plate || carId;
-    goalModeText.textContent = `Célpont mód: ${plate}`;
-    goalModeBadge.style.display = "flex";
-    save();
-  }
-  function clearGoalMode(){
-    S.goalModeCarId = null;
-    goalModeBadge.style.display = "none";
-    save();
-  }
-
-  // ✅ csak tényleges térképkattintásra adjunk célpontot (ne UI/popup kattintásra)
-  map.on("click", (e)=>{
-    if(!S.goalModeCarId) return;
-
-    const t = e.originalEvent?.target;
-    if(t && (
-      t.closest?.(".hud") ||
-      t.closest?.(".planbar") ||
-      t.closest?.(".leaflet-popup") ||
-      t.closest?.(".leaflet-control") ||
-      t.closest?.(".leaflet-marker-icon")
-    )) return;
-
-    addGoal(S.goalModeCarId, e.latlng.lat, e.latlng.lng);
-  });
-
-  /********************
-   * Popup
-   ********************/
-  function openCarPopup(carId, force=false){
-    const car = S.cars.get(carId);
-    if(!car) return;
-
-    const hidden = S.hiddenCars.has(carId);
-    const goals = S.carGoals.get(carId) || [];
-
-    const html = `
-      <div class="popup">
-        <h3>${car.plate}</h3>
-        <div class="meta">${car.model || "—"} • ${car.energy != null ? Math.round(car.energy/10)+"%" : "—"} • célpontok: ${goals.length}</div>
-        <div class="row">
-          <button class="btn ${hidden ? "warn" : ""}" data-act="toggleHide">${hidden ? "Megjelenít" : "Elrejt"}</button>
-          <button class="btn danger" data-act="goalMode">Célpont hozzáadása (térképre katt)</button>
-          <button class="btn danger" data-act="clearGoals">Ennek az autónak célpontjai törlése</button>
-        </div>
-        <div class="small">Tervezésben automatikusan részt vesz az az autó, amihez van célpont.</div>
-      </div>
-    `;
-
-    const m = S.carMarkers.get(carId);
-    if(!m) return;
-
-    if(force){
-      try{ m.closePopup(); }catch{}
-    }
-    m.bindPopup(html, {maxWidth:360, autoPan:true});
-    m.openPopup();
-
-    setTimeout(()=>{
-      const el = m.getPopup()?.getElement();
-      if(!el) return;
-
-      const bind = (sel, fn)=>{
-        const b = el.querySelector(sel);
-        if(b) b.addEventListener("click", fn);
-      };
-
-      bind('button[data-act="toggleHide"]', ()=>{
-        if(S.hiddenCars.has(carId)) S.hiddenCars.delete(carId);
-        else S.hiddenCars.add(carId);
-        save();
-        applyCarMarker(carId);
-        renderGoals();
-        clearRoutesAll();
-        try{ m.closePopup(); }catch{}
-      });
-
-      bind('button[data-act="goalMode"]', ()=>{
-        setGoalMode(carId); // ✅ nincs kész gomb – marad, amíg másik autóra nem katt
-      });
-
-      bind('button[data-act="clearGoals"]', ()=>{
-        clearGoalsForCar(carId);
-        try{ m.closePopup(); }catch{}
-      });
-
-    }, 0);
-  }
-
-  /********************
-   * Zones
-   ********************/
-  function clearZones(){
-    for(const l of S.zoneLayers) map.removeLayer(l);
-    S.zoneLayers = [];
-  }
-
-  async function toggleZones(){
-    S.zonesOn = !S.zonesOn;
-    $("btnZones").textContent = "Zónák: " + (S.zonesOn ? "BE" : "KI");
-    save();
-
-    if(!S.zonesOn){
-      clearZones();
-      return;
-    }
-    setStatus("Zónák…");
-    try{
-      delete window.homezones;
-      await loadScript(URL_ZONES);
-      const hz = window.homezones;
-      if(!Array.isArray(hz)) throw new Error("homezones formátum");
-
-      clearZones();
-      const items = hz.filter(x => x?.cityId === CITY_ID_BUDAPEST && x?.zone?.type === "FeatureCollection");
-      for(const it of items){
-        const fc = it.zone;
-        for(const f of (fc.features || [])){
-          const t = f?.properties?.type; // allowed/forbidden
-          const color = (t === "allowed") ? "#22c55e" : "#ef4444";
-          const fillOpacity = (t === "allowed") ? 0.08 : 0.12;
-          const layer = L.geoJSON(f, { style:{ color, weight:2, fillOpacity, opacity:0.9, interactive:false }});
-          layer.addTo(map);
-          S.zoneLayers.push(layer);
-        }
-      }
-      setStatus("Zónák: OK");
-    }catch(e){
-      console.error(e);
-      setStatus("Zónák: HIBA");
-      setPlan("Zóna hiba", "Nem sikerült betölteni a homezones.js-t (URL token változhat).");
-    }
-  }
-
-  /********************
-   * Routing helpers (multi engine + sanity)
+   * Routing helpers
    ********************/
   async function fetchJson(url){
     const r = await fetch(url);
@@ -849,8 +808,7 @@
 
   function walkLooksWrong(distance, duration){
     if(!isFinite(distance) || !isFinite(duration) || duration <= 0) return true;
-    const speed = distance / duration; // m/s
-    // gyalog normálisan 0.5–2.0 m/s; 3 m/s felett már gyanús (autós)
+    const speed = distance / duration;
     return speed > 3.0;
   }
 
@@ -882,7 +840,6 @@
         const j = await fetchJson(url);
         if(!j?.durations) throw new Error("no durations");
 
-        // sanity: ha gyalog és több elemben irreális sebesség, dobjuk
         if(isWalk){
           const durRow = j.durations?.[0];
           const distRow = j.distances?.[0];
@@ -896,7 +853,6 @@
             if(cnt > 0 && bad / cnt > 0.4) throw new Error("walk table sanity failed");
           }
         }
-
         return j;
       }catch(err){
         lastErr = err;
@@ -939,45 +895,441 @@
           if(d > 0) gain += d;
           else loss += (-d);
         }
-        return { gain, loss, min:Math.min(...elev), max:Math.max(...elev) };
+        return { gain, loss };
       }catch(e){}
     }
     return null;
   }
 
   /********************
-   * Drawing
+   * Goals
    ********************/
-  function clearLayerGroup(g){ try{ g.clearLayers(); }catch{} }
-  function clearRoutesAll(){
-    clearLayerGroup(S.layerWalk);
-    clearLayerGroup(S.layerDrive);
-    clearLayerGroup(S.layerLabels);
-    clearLayerGroup(S.layerNearest);
-    S.plan = null;
-    planDetails.innerHTML = "";
-    for(const [, m] of S.carMarkers.entries()){
-      const el = m.getElement()?.querySelector(".carIcon");
-      if(el){ el.classList.remove("nearest"); el.classList.remove("bestPlan"); }
+  function makeGoalIcon(plate, n){
+    return L.divIcon({
+      className:"",
+      html: `
+        <div class="goalWrap">
+          <div class="goalPlate">${(plate||"")}</div>
+          <div class="goalIcon">${n}</div>
+        </div>
+      `,
+      iconSize:[1,1],
+      iconAnchor:[17,30]
+    });
+  }
+
+  function addGoal(carId, lat, lon){
+    if(!S.carGoals.has(carId)) S.carGoals.set(carId, []);
+    const arr = S.carGoals.get(carId);
+
+    if(arr.length >= MAX_GOALS_PER_CAR){
+      setPlan("Túl sok célpont", `Egy autóhoz max ${MAX_GOALS_PER_CAR} célpontot számolok.`);
+      return;
+    }
+
+    const id = "g_" + (++S.globalGoalCounter) + "_" + Date.now().toString(16);
+    arr.push({ id, lat, lon });
+    S.selectedCars.add(carId); // ✅ ha célpontozol, automatikusan „pipa”
+    save();
+    renderGoals();
+    refreshAllCarIcons();
+    setPlan("Célpont hozzáadva", "Nyomj Tervezés-t a számoláshoz.");
+  }
+
+  function clearGoalsForCar(carId){
+    S.carGoals.delete(carId);
+    save();
+    renderGoals();
+    refreshAllCarIcons();
+    setPlan("Célpontok törölve", "Nyomj Tervezés-t a számoláshoz.");
+  }
+
+  function clearAllGoals(){
+    S.carGoals.clear();
+    S.usedGoalIds = new Set();
+    save();
+    renderGoals();
+    refreshAllCarIcons();
+    clearRoutesAll();
+    setFocusNone();
+    setPlan("Célpontok törölve", "Adj célpontot egy autóhoz.");
+  }
+
+  function renderGoals(){
+    for(const [gid, o] of S.goalMarkers.entries()){
+      try{ map.removeLayer(o.marker);}catch{}
+      try{ map.removeLayer(o.circle);}catch{}
+    }
+    S.goalMarkers.clear();
+
+    for(const [carId, goals] of S.carGoals.entries()){
+      if(!goals || goals.length === 0) continue;
+
+      if(S.focusMode === "plan" && !S.focusCarIds.has(carId)) continue;
+
+      const plate = S.cars.get(carId)?.plate || carId;
+
+      goals.forEach((g, idx)=>{
+        if(S.focusMode === "plan" && S.usedGoalIds.size > 0 && !S.usedGoalIds.has(g.id)) return;
+
+        const n = idx + 1;
+        const marker = L.marker([g.lat, g.lon], { icon: makeGoalIcon(plate, n) }).addTo(map);
+        const circle = L.circle([g.lat, g.lon], {
+          radius: GOAL_ZONE_RADIUS_M,
+          color:"#ef4444", weight:2, fillOpacity:0.06, interactive:false
+        }).addTo(map);
+
+        marker.on("click", ()=>{
+          const html = `
+            <div class="popup">
+              <h3>${plate} • célpont #${n}</h3>
+              <div class="row">
+                <button class="btn danger" data-act="delGoal">Célpont törlése</button>
+              </div>
+            </div>
+          `;
+          marker.bindPopup(html, {maxWidth:320}).openPopup();
+          setTimeout(()=>{
+            const el = marker.getPopup()?.getElement();
+            if(!el) return;
+            const btn = el.querySelector('button[data-act="delGoal"]');
+            if(btn){
+              btn.addEventListener("click", ()=>{
+                const arr = S.carGoals.get(carId) || [];
+                S.carGoals.set(carId, arr.filter(x=>x.id !== g.id));
+                if((S.carGoals.get(carId)||[]).length === 0) S.carGoals.delete(carId);
+                save();
+                renderGoals();
+                refreshAllCarIcons();
+                try{ marker.closePopup(); }catch{}
+              });
+            }
+          }, 0);
+        });
+
+        S.goalMarkers.set(g.id, { marker, circle, carId });
+      });
     }
   }
 
-  function addShortLabel(latlng, text){
-    return L.marker(latlng, {
-      icon: L.divIcon({ className:"", html:`<div class="routeLabel">${text}</div>`, iconSize:[1,1], iconAnchor:[0,0] }),
-      interactive:false
-    }).addTo(S.layerLabels);
+  /********************
+   * Goal mode
+   ********************/
+  function setGoalMode(carId){
+    S.goalModeCarId = carId;
+    const plate = S.cars.get(carId)?.plate || carId;
+    goalModeText.textContent = `Célpont mód: ${plate}`;
+    goalModeBadge.style.display = "flex";
+    S.selectedCars.add(carId); // ✅ pipáljuk
+    save();
+    renderCarList();
+    refreshAllCarIcons();
+  }
+  function clearGoalMode(){
+    S.goalModeCarId = null;
+    goalModeBadge.style.display = "none";
+    save();
   }
 
-  function drawRoute(layer, geo, opts){
-    const latlngs = geo.coordinates.map(([lon,lat])=>[lat,lon]);
-    const poly = L.polyline(latlngs, { ...opts, interactive:false }).addTo(layer);
-    return { poly, latlngs };
+  map.on("click", (e)=>{
+    if(!S.goalModeCarId) return;
+
+    const t = e.originalEvent?.target;
+    if(t && (
+      t.closest?.(".hud") ||
+      t.closest?.(".planbar") ||
+      t.closest?.(".leaflet-popup") ||
+      t.closest?.(".leaflet-control") ||
+      t.closest?.(".leaflet-marker-icon")
+    )) return;
+
+    addGoal(S.goalModeCarId, e.latlng.lat, e.latlng.lng);
+  });
+
+  /********************
+   * Popup
+   ********************/
+  function openCarPopup(carId, force=false){
+    const car = S.cars.get(carId);
+    if(!car) return;
+
+    const hidden = S.hiddenCars.has(carId);
+    const goals = S.carGoals.get(carId) || [];
+
+    const html = `
+      <div class="popup">
+        <h3>${car.plate}</h3>
+        <div class="meta">${car.model || "—"} • ${car.energy != null ? Math.round(car.energy/10)+"%" : "—"} • célpontok: ${goals.length}</div>
+        <div class="row">
+          <button class="btn ${hidden ? "warn" : ""}" data-act="toggleHide">${hidden ? "Megjelenít" : "Elrejt"}</button>
+          <button class="btn danger" data-act="goalMode">Célpont mód (térképre katt)</button>
+          <button class="btn danger" data-act="clearGoals">Célpontok törlése</button>
+        </div>
+        <div class="small">Tervezésben automatikusan részt vesz az az autó, amihez van célpont.</div>
+      </div>
+    `;
+
+    const m = S.carMarkers.get(carId);
+    if(!m) return;
+
+    if(force){
+      try{ m.closePopup(); }catch{}
+    }
+    m.bindPopup(html, {maxWidth:360, autoPan:true});
+    m.openPopup();
+
+    setTimeout(()=>{
+      const el = m.getPopup()?.getElement();
+      if(!el) return;
+
+      const bind = (sel, fn)=>{
+        const b = el.querySelector(sel);
+        if(b) b.addEventListener("click", fn);
+      };
+
+      bind('button[data-act="toggleHide"]', ()=>{
+        if(S.hiddenCars.has(carId)) S.hiddenCars.delete(carId);
+        else S.hiddenCars.add(carId);
+        save();
+        applyCarMarker(carId);
+        renderGoals();
+        renderCarList();
+        clearRoutesAll();
+        try{ m.closePopup(); }catch{}
+      });
+
+      bind('button[data-act="goalMode"]', ()=>{
+        setGoalMode(carId);
+      });
+
+      bind('button[data-act="clearGoals"]', ()=>{
+        clearGoalsForCar(carId);
+        renderCarList();
+        try{ m.closePopup(); }catch{}
+      });
+
+    }, 0);
   }
-  function midPoint(latlngs){
-    if(!latlngs || latlngs.length === 0) return null;
-    return latlngs[Math.floor(latlngs.length/2)];
+
+  /********************
+   * ZONES
+   ********************/
+  function clearZones(){
+    for(const l of S.zoneLayers) map.removeLayer(l);
+    S.zoneLayers = [];
   }
+
+  async function toggleZones(){
+    S.zonesOn = !S.zonesOn;
+    $("btnZones").textContent = "Zónák: " + (S.zonesOn ? "BE" : "KI");
+    save();
+
+    if(!S.zonesOn){
+      clearZones();
+      return;
+    }
+
+    setStatus("Zónák…");
+    try{
+      delete window.homezones;
+      await loadScript(URL_ZONES);
+      const hz = window.homezones;
+      if(!Array.isArray(hz)) throw new Error("homezones formátum");
+
+      clearZones();
+      const items = hz.filter(x => x?.cityId === CITY_ID_BUDAPEST && x?.zone?.type === "FeatureCollection");
+      for(const it of items){
+        const fc = it.zone;
+        for(const f of (fc.features || [])){
+          const t = f?.properties?.type;
+          const color = (t === "allowed") ? "#22c55e" : "#ef4444";
+          const fillOpacity = (t === "allowed") ? 0.08 : 0.12;
+          const layer = L.geoJSON(f, { style:{ color, weight:2, fillOpacity, opacity:0.9, interactive:false }});
+          layer.addTo(map);
+          S.zoneLayers.push(layer);
+        }
+      }
+      setStatus("Zónák: OK");
+    }catch(e){
+      console.error(e);
+      setStatus("Zónák: HIBA");
+      setPlan("Zóna hiba", "Nem sikerült betölteni a homezones.js-t (URL token változhat).");
+    }
+  }
+
+  /********************
+   * Cars refresh
+   ********************/
+  async function refreshCars(){
+    setStatus("Frissítés…");
+    try{
+      delete window.cars;
+      await loadScript(URL_CARS);
+      let arr = window.cars;
+      if(!Array.isArray(arr)) arr = arr?.cars || arr?.vehicles || arr?.data || [];
+      if(!Array.isArray(arr)) throw new Error("cars.js formátum");
+
+      const seen = new Set();
+      for(const raw of arr){
+        const car = normalizeCar(raw);
+        if(!car) continue;
+        S.cars.set(car.id, car);
+        S.lastSeenMiss.set(car.id, 0);
+        seen.add(car.id);
+      }
+
+      // ha refreshkor eltűnt: célpont törlés + pipa törlés
+      for(const carId of Array.from(S.carGoals.keys())){
+        if(!seen.has(carId)){
+          S.carGoals.delete(carId);
+          S.selectedCars.delete(carId);
+        }
+      }
+      for(const carId of Array.from(S.selectedCars)){
+        if(!seen.has(carId)){
+          S.selectedCars.delete(carId);
+        }
+      }
+
+      for(const [carId, miss] of Array.from(S.lastSeenMiss.entries())){
+        if(seen.has(carId)) continue;
+        const m2 = (miss || 0) + 1;
+        S.lastSeenMiss.set(carId, m2);
+        if(m2 >= 2){
+          S.cars.delete(carId);
+          S.lastSeenMiss.delete(carId);
+          S.hiddenCars.delete(carId);
+          removeCarMarker(carId);
+        }
+      }
+
+      renderGoals();
+      refreshAllCarIcons();
+      save();
+
+      setStatus(`Autók: ${S.cars.size}`);
+    }catch(e){
+      console.error(e);
+      setStatus("Frissítés: HIBA");
+      setPlan("Hiba", "Nem sikerült betölteni a cars.js-t (URL token változhat).");
+    }
+  }
+
+  /********************
+   * Autólista render + events
+   ********************/
+  function energyPct(energyLevel){
+    if(energyLevel == null || !isFinite(energyLevel)) return "—";
+    return Math.round(energyLevel/10) + "%";
+  }
+
+  function renderCarList(){
+    if(drawerEl.style.display !== "block") return;
+
+    const q = (carSearchEl.value || "").trim().toLowerCase();
+    const all = Array.from(S.cars.values());
+
+    all.sort((a,b)=> (a.plate||"").localeCompare(b.plate||""));
+
+    const rows = [];
+    let shown = 0;
+
+    for(const c of all){
+      const plate = c.plate || c.id;
+      const model = c.model || "";
+      const hay = (plate + " " + model).toLowerCase();
+      if(q && !hay.includes(q)) continue;
+
+      const hidden = S.hiddenCars.has(c.id);
+      const goals = (S.carGoals.get(c.id) || []);
+      const hasGoals = goals.length > 0;
+      const checked = S.selectedCars.has(c.id) || hasGoals;
+
+      rows.push(`
+        <div class="carRow" data-id="${c.id}">
+          <input class="chk" type="checkbox" ${checked ? "checked" : ""} data-act="toggleSelect" />
+          <div class="main">
+            <div class="plate">${plate}</div>
+            <div class="meta">${model || "—"} • ${energyPct(c.energy)}</div>
+            <div class="tags">
+              <span class="tag ${hasGoals ? "goals" : ""}">célpontok: ${goals.length}</span>
+              ${hidden ? `<span class="tag hidden">rejtett</span>` : ``}
+              ${S.goalModeCarId === c.id ? `<span class="tag">célpont mód</span>` : ``}
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" data-act="goto">Odaugrás</button>
+            <button class="btn danger" data-act="goalMode">Célpont mód</button>
+            <button class="btn ${hidden ? "warn" : ""}" data-act="toggleHide">${hidden ? "Megjelenít" : "Elrejt"}</button>
+            <button class="btn danger" data-act="clearGoals">Célpontok törlése</button>
+          </div>
+        </div>
+      `);
+      shown++;
+    }
+
+    drawerSubEl.textContent = `Összes: ${S.cars.size} • Listában: ${shown} • Pipált: ${S.selectedCars.size}`;
+    carListEl.innerHTML = rows.join("");
+  }
+
+  carSearchEl.addEventListener("input", ()=> renderCarList());
+
+  carListEl.addEventListener("click", (e)=>{
+    const row = e.target.closest(".carRow");
+    if(!row) return;
+    const carId = row.getAttribute("data-id");
+    const act = e.target.getAttribute("data-act");
+
+    if(act === "goto"){
+      const car = S.cars.get(carId);
+      if(car){
+        map.setView([car.lat, car.lon], Math.max(map.getZoom(), 15), {animate:true});
+        openCarPopup(carId, true);
+      }
+      return;
+    }
+
+    if(act === "goalMode"){
+      setGoalMode(carId);
+      closeDrawer();
+      const car = S.cars.get(carId);
+      if(car) map.setView([car.lat, car.lon], Math.max(map.getZoom(), 15), {animate:true});
+      return;
+    }
+
+    if(act === "toggleHide"){
+      if(S.hiddenCars.has(carId)) S.hiddenCars.delete(carId);
+      else S.hiddenCars.add(carId);
+      save();
+      applyCarMarker(carId);
+      renderGoals();
+      renderCarList();
+      clearRoutesAll();
+      return;
+    }
+
+    if(act === "clearGoals"){
+      clearGoalsForCar(carId);
+      renderCarList();
+      return;
+    }
+  });
+
+  carListEl.addEventListener("change", (e)=>{
+    const row = e.target.closest(".carRow");
+    if(!row) return;
+    const carId = row.getAttribute("data-id");
+    const act = e.target.getAttribute("data-act");
+    if(act !== "toggleSelect") return;
+
+    const checked = e.target.checked;
+    if(checked) S.selectedCars.add(carId);
+    else S.selectedCars.delete(carId);
+
+    save();
+    refreshAllCarIcons(); // frissíti a narancs keretet
+    renderCarList();
+  });
 
   /********************
    * Nearest-to-me (walk)
@@ -1047,7 +1399,7 @@
   }
 
   /********************
-   * PLAN (DP)
+   * PLAN (DP) – ugyanaz, mint eddig
    ********************/
   function getPlanCars(){
     const ids = [];
@@ -1094,6 +1446,7 @@
       : (()=>{ const c = map.getCenter(); return {lat:c.lat, lon:c.lng}; })();
 
     const cars = carIds.map(id=>S.cars.get(id));
+
     const goalsFlat = [];
     for(const carId of carIds){
       const goals = (S.carGoals.get(carId) || []).slice(0, MAX_GOALS_PER_CAR);
@@ -1103,12 +1456,10 @@
     const G = goalsFlat.length;
     const C = cars.length;
 
-    // walk table: sources = start + goals ; dest = cars
     const walkCoords = [start, ...goalsFlat.map(x=>({lat:x.goal.lat, lon:x.goal.lon})), ...cars.map(c=>({lat:c.lat, lon:c.lon}))];
     const walkSources = Array.from({length: 1+G}, (_,i)=>i);
     const walkDest    = Array.from({length: C}, (_,i)=> (1+G+i));
 
-    // drive table: sources = cars ; dest = goals
     const driveCoords = [...cars.map(c=>({lat:c.lat, lon:c.lon})), ...goalsFlat.map(x=>({lat:x.goal.lat, lon:x.goal.lon}))];
     const driveSources = Array.from({length:C}, (_,i)=>i);
     const driveDest = Array.from({length:G}, (_,i)=> (C+i));
@@ -1131,7 +1482,6 @@
     const driveDur = driveTbl.durations;
     const driveDist = driveTbl.distances;
 
-    // goals by car
     const goalsByCar = new Map();
     for(let gi=0; gi<G; gi++){
       const cid = goalsFlat[gi].carId;
@@ -1143,7 +1493,6 @@
     const dp = Array.from({length: 1<<C}, ()=> new Map());
     const parent = Array.from({length: 1<<C}, ()=> new Map());
 
-    // init
     for(let i=0;i<C;i++){
       const cid = carIds[i];
       const gList = goalsByCar.get(cid) || [];
@@ -1162,7 +1511,6 @@
       }
     }
 
-    // trans
     for(let mask=1; mask<=FULL; mask++){
       for(const [key, cost] of dp[mask].entries()){
         const lastGoal = parseInt(key.split("|")[1],10);
@@ -1193,7 +1541,6 @@
       }
     }
 
-    // best
     let bestKey = null, bestCost = Infinity;
     for(const [k, v] of dp[FULL].entries()){
       if(v < bestCost){ bestCost=v; bestKey=k; }
@@ -1203,7 +1550,6 @@
       return;
     }
 
-    // backtrack
     const orderRev = [];
     const chosenGoalByCarIdx = new Map();
     let curMask = FULL;
@@ -1220,21 +1566,26 @@
     const orderCarIds = orderIdx.map(i=>carIds[i]);
     const orderPlates = orderIdx.map(i=>cars[i].plate);
 
-    // ✅ terv után: csak ezek az autók maradnak
-    setFocusPlan(orderCarIds);
+    S.usedGoalIds = new Set();
+    for (const ci of orderIdx) {
+      const gi = chosenGoalByCarIdx.get(ci);
+      const goalObj = goalsFlat[gi]?.goal;
+      if (goalObj?.id) S.usedGoalIds.add(goalObj.id);
+    }
+    save();
 
-    // highlight first
+    setFocusPlan(orderCarIds);
+    renderGoals();
+
     const firstMarker = S.carMarkers.get(orderCarIds[0]);
     if(firstMarker){
       setTimeout(()=>firstMarker.getElement()?.querySelector(".carIcon")?.classList.add("bestPlan"), 0);
     }
 
-    // legs
     let totalWalkSec = 0, totalDriveSec = 0;
     const legs = [];
 
-    // start->car1 walk
-    {
+    { // start->car1 walk
       const c0 = orderIdx[0];
       legs.push({
         type:"walk",
@@ -1273,7 +1624,6 @@
       }
     }
 
-    // draw route legs (real)
     setPlan("Útvonal rajzolás…", "Valós gyalog + autó útvonalak…");
 
     const allBoundsPts = [];
@@ -1287,14 +1637,11 @@
         leg.distance = rt.distance;
 
         const layer = isWalk ? S.layerWalk : S.layerDrive;
-        const style = isWalk
-          ? { weight:7, opacity:.95, dashArray:"10 10" }
-          : { weight:7, opacity:.95 };
+        const style = isWalk ? { weight:7, opacity:.95, dashArray:"10 10" } : { weight:7, opacity:.95 };
 
         const drawn = drawRoute(layer, rt.geometry, style);
         const mid = midPoint(drawn.latlngs);
 
-        // rövid térképcímke
         if(mid){
           addShortLabel(mid, `${isWalk ? "🚶" : "🚗"} ${fmtMin(rt.duration)} • ${fmtKm(rt.distance)}`);
         }
@@ -1307,20 +1654,13 @@
         allBoundsPts.push([leg.from.point.lat, leg.from.point.lon]);
         allBoundsPts.push([leg.to.point.lat, leg.to.point.lon]);
 
-      }catch(e){
-        // ha egy szakasz nem rajzolható, a lista attól még megmarad
-      }
+      }catch(e){}
 
       if(leg.type === "walk") totalWalkSec += (leg.duration||0);
       else totalDriveSec += (leg.duration||0);
     }
 
-    const planObj = {
-      orderCarIds, orderPlates, legs,
-      totalWalkSec,
-      totalDriveSec,
-      totalSec: totalWalkSec + totalDriveSec
-    };
+    const planObj = { orderCarIds, orderPlates, legs, totalWalkSec, totalDriveSec, totalSec: totalWalkSec + totalDriveSec };
     S.plan = planObj;
 
     renderPlanDetails(planObj);
@@ -1351,6 +1691,13 @@
   $("btnMe").addEventListener("click", ()=>{
     if(S.me) map.setView([S.me.lat, S.me.lon], Math.max(map.getZoom(), 14), {animate:true});
   });
+  $("btnMore").addEventListener("click", ()=> hudMoreEl.classList.toggle("open"));
+  $("btnCarList").addEventListener("click", openDrawer);
+
+  /********************
+   * Auto refresh (nem tervez újra)
+   ********************/
+  setInterval(refreshCars, REFRESH_MS);
 
   /********************
    * Init
@@ -1367,11 +1714,9 @@
     toggleZones();
   }
 
-  // auto refresh (nem tervez újra)
-  setInterval(refreshCars, REFRESH_MS);
-
   renderGoals();
   refreshAllCarIcons();
+  renderCarList();
 
 })();
 </script>
