@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Carsharing tervező (MOL Limo + Hot zone)</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="anonymous">
+
+  <style>
+    :root{
+      --bg: rgba(12,18,28,.88);
+      --bg2: rgba(12,18,28,.74);
+      --text: #f3f7ff;
+      --muted: rgba(243,247,255,.68);
+      --line: rgba(255,255,255,.10);
+      --accent: #ffb000;
+      --good: #16a34a;
+      --bad: #dc2626;
+      --chip: rgba(255,255,255,.10);
+      --shadow: 0 20px 60px rgba(0,0,0,.45);
+      --r: 16px;
+    }
+    html, body { height: 100%; margin: 0; }
+    body { background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #map { position: fixed; inset: 0; }
+
+    /* Floating controls */
+    .hud{
+      position: fixed;
+      z-index: 1000;
+      left: 10px; top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(520px, calc(100vw - 20px));
+      pointer-events: none;
+    }
+    .card{
+      pointer-events: auto;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      overflow: hidden;
+    }
+    .row{ display:flex; gap:8px; align-items:center; }
+    .pad{ padding: 10px; }
+    .title{ font-weight: 700; font-size: 14px; }
+    .sub{ font-size: 12px; color: var(--muted); }
+    .btn{
+      appearance: none; border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .btn:active{ transform: scale(.99); }
+    .btn.primary{ border-color: rgba(22,163,74,.55); background: rgba(22,163,74,.20); }
+    .btn.danger{ border-color: rgba(220,38,38,.55); background: rgba(220,38,38,.18); }
+    .btn.warn{ border-color: rgba(255,176,0,.55); background: rgba(255,176,0,.18); }
+    .btn.ghost{ background: transparent; }
+    .btn.small{ padding: 8px 10px; font-size: 12px; }
+    .toggle{
+      border-radius: 999px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      display:flex; gap:8px; align-items:center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .dot{ width:10px; height:10px; border-radius: 999px; background: rgba(255,255,255,.25); }
+    .toggle.on .dot{ background: var(--accent); }
+
+    .pill{
+      display:inline-flex; gap:8px; align-items:center;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--chip);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    /* Status bar (black strip) */
+    .statusbar{
+      position: fixed; z-index: 1200;
+      left: 0; right: 0; bottom: 0;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(0,0,0,.86);
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.35;
+      border-top: 1px solid rgba(255,255,255,.12);
+      display:none;
+    }
+    .statusbar.show{ display:block; }
+    .statusbar b{ font-size: 14px; }
+    .statusbar .muted{ color: rgba(255,255,255,.7); }
+
+    /* Results sheet */
+    .sheet{
+      position: fixed; z-index: 1100;
+      left: 10px; right: 10px;
+      bottom: 10px;
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      max-width: 900px;
+      margin: 0 auto;
+      border-radius: 18px;
+      overflow: hidden;
+      display:none;
+    }
+    .sheet.show{ display:block; }
+    .sheetHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding: 12px 12px;
+      background: rgba(0,0,0,.55);
+      border-bottom: 1px solid rgba(255,255,255,.10);
+    }
+    .sheetHeader .title{ font-size: 14px; }
+    .sheetBody{
+      max-height: min(56vh, 520px);
+      overflow: auto;
+      padding: 10px 12px;
+    }
+    .steps{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .step{
+      padding: 10px 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      background: rgba(255,255,255,.05);
+      display:flex; gap:10px; align-items:flex-start;
+    }
+    .badge{
+      min-width: 28px; height: 28px;
+      border-radius: 999px;
+      display:flex; align-items:center; justify-content:center;
+      font-weight: 800;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+    .stepTitle{ font-weight: 800; }
+    .stepMeta{ font-size: 12px; color: rgba(255,255,255,.72); margin-top: 2px; }
+    .kv{
+      display:flex; gap:10px; flex-wrap:wrap; margin-top: 6px;
+      font-size: 12px; color: rgba(255,255,255,.78);
+    }
+    .kv span{
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.22);
+    }
+
+    /* Car list drawer */
+    .drawer{
+      position: fixed; z-index: 1300;
+      right: 10px; top: 10px;
+      width: min(420px, calc(100vw - 20px));
+      max-height: min(82vh, 760px);
+      display:none;
+    }
+    .drawer.show{ display:block; }
+    .drawerHeader{
+      padding: 10px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.30);
+    }
+    .drawerBody{ max-height: calc(min(82vh, 760px) - 52px); overflow: auto; padding: 10px 10px; }
+    .search{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.28);
+      color: var(--text);
+      outline: none;
+      font-size: 14px;
+    }
+    .carItem{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding: 10px 8px;
+      border-bottom: 1px dashed rgba(255,255,255,.12);
+    }
+    .carLeft{ display:flex; gap:10px; align-items:flex-start; min-width: 0; }
+    .chk{
+      width: 20px; height: 20px;
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+    .carMain{ min-width: 0; }
+    .plate{ font-weight: 900; letter-spacing: .5px; }
+    .carMeta{ font-size: 12px; color: rgba(255,255,255,.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .carBtns{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .carBtns .btn{ padding: 8px 10px; font-size: 12px; }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      font-size: 11px;
+      color: rgba(255,255,255,.80);
+      margin-top: 6px;
+      gap:6px;
+    }
+
+    /* Leaflet marker labels */
+    .plate-label{
+      background: rgba(0,0,0,.70);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .target-label{
+      background: rgba(220,38,38,.92);
+      color: #fff;
+      border-radius: 999px;
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,.18);
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .target-label small{
+      font-weight: 800; opacity: .9;
+    }
+
+    /* Mobile: move drawer to full-screen bottom */
+    @media (max-width: 720px){
+      .hud{ left: 8px; right: 8px; top: 8px; }
+      .drawer{
+        right: 8px; left: 8px;
+        top: auto;
+        bottom: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom));
+        width: auto;
+        max-height: min(70vh, 620px);
+      }
+      .drawerBody{ max-height: calc(min(70vh, 620px) - 52px); }
+      .sheet{ left: 8px; right: 8px; bottom: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Floating HUD -->
+  <div class="hud">
+    <div class="card pad">
+      <div class="row" style="justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div class="title">Carsharing tervező</div>
+          <div class="sub" id="subLine">Betöltés…</div>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button class="btn small ghost" id="btnCars">Autók</button>
+          <button class="btn small" id="btnRefresh">Frissítés</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px; flex-wrap:wrap;">
+        <button class="btn primary" id="btnPlan">Tervezés</button>
+        <button class="btn" id="btnMe">Én</button>
+        <div class="toggle" id="toggleZones" title="MOL Limo zónák">
+          <div class="dot"></div><div style="font-weight:800; font-size:13px;">Zónák</div>
+        </div>
+        <div class="toggle" id="toggleBkv" title="GTFS / BKV (ha be van állítva)">
+          <div class="dot"></div><div style="font-weight:800; font-size:13px;">BKV</div>
+        </div>
+        <button class="btn danger" id="btnShowAll">Összes autó</button>
+      </div>
+
+      <div class="row" style="margin-top:10px; flex-wrap:wrap;">
+        <span class="pill" id="pillCars">Autók: —</span>
+        <span class="pill" id="pillSelected">Kijelölt: 0</span>
+        <span class="pill" id="pillTargets">Hot zone: 0</span>
+        <span class="pill" id="pillMode">Mód: —</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Car list drawer -->
+  <div class="drawer card" id="drawer">
+    <div class="drawerHeader">
+      <div>
+        <div class="title">Autók</div>
+        <div class="sub" id="drawerSub">—</div>
+      </div>
+      <button class="btn small" id="btnCloseDrawer">Bezár</button>
+    </div>
+    <div class="drawerBody">
+      <input class="search" id="carSearch" placeholder="Keresés (rendszám / típus)..." />
+      <div style="height:10px;"></div>
+      <div id="carList"></div>
+      <div style="height:10px;"></div>
+      <div class="sub">
+        Tipp: <b>autóra katt</b> → „Hot zone mód”, utána <b>térképre katt</b> a zóna felvételéhez (300–400 m kör).
+      </div>
+    </div>
+  </div>
+
+  <!-- Plan sheet -->
+  <div class="sheet card" id="sheet">
+    <div class="sheetHeader">
+      <div>
+        <div class="title" id="sheetTitle">Kész</div>
+        <div class="sub" id="sheetSub">—</div>
+      </div>
+      <div class="row" style="gap:6px;">
+        <button class="btn small" id="btnReplan">Újratervezés</button>
+        <button class="btn small danger" id="btnClearPlan">Bezár</button>
+      </div>
+    </div>
+    <div class="sheetBody">
+      <div class="steps" id="steps"></div>
+    </div>
+  </div>
+
+  <!-- Black status strip -->
+  <div class="statusbar" id="statusbar">
+    <b id="statusTitle">—</b><br>
+    <span class="muted" id="statusText">—</span>
+  </div>
+
+  <!-- JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+
+  <script src="./gtfs.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
