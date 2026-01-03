@@ -1,2 +1,0 @@
-feed_id,feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version
-BKK,BKK Zrt.,https://www.bkk.hu,hu,20260103,20260202,2333.20260103
