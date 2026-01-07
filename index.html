@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Carsharing tervező (MOL Limo + Hot zone)</title>
-  <meta name="description" content="Carsharing tervező és útvonal optimalizáló MOL Limo autókhoz.">
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
@@ -73,10 +72,8 @@
     .btn.warn{ border-color: rgba(255,176,0,.55); background: rgba(255,176,0,.18); }
     .btn.ghost{ background: transparent; }
     .btn.small{ padding: 8px 10px; font-size: 12px; }
-    
-    /* Loading state for refresh button */
-    .btn.loading { opacity: 0.7; cursor: wait; }
-    
+    .btn.loading { opacity: 0.7; cursor: wait; } /* Loading state */
+
     .toggle{
       border-radius: 999px;
       padding: 10px 12px;
@@ -192,7 +189,7 @@
     .drawerBody{ max-height: calc(min(82vh, 760px) - 52px); overflow: auto; padding: 10px 10px; }
     .search{
       width: 100%;
-      box-sizing: border-box; /* Fix width issues */
+      box-sizing: border-box;
       padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,.10);
@@ -265,8 +262,7 @@
         bottom: 8px;
         bottom: calc(8px + env(safe-area-inset-bottom));
         width: auto;
-        /* OPTIMIZATION: Csökkentett magasság mobilra, hogy ne lógjon ki */
-        max-height: min(60vh, 500px); 
+        max-height: min(60vh, 500px); /* Optimalizált magasság mobilra */
       }
       .drawerBody{ max-height: calc(min(60vh, 500px) - 52px); }
       .sheet{ left: 8px; right: 8px; bottom: 8px; }
@@ -291,7 +287,7 @@
       </div>
 
       <div class="row" style="margin-top:10px; flex-wrap:wrap;">
-        <button class="btn primary" id="btnPlan" aria-label="Útvonal tervezése">Tervezés</button>
+        <button class="btn primary" id="btnPlan" aria-label="Tervezés indítása">Tervezés</button>
         <button class="btn" id="btnMe" aria-label="Saját pozíció">Én</button>
         <div class="toggle" id="toggleZones" title="MOL Limo zónák" role="switch" aria-checked="false">
           <div class="dot"></div><div style="font-weight:800; font-size:13px;">Zónák</div>
@@ -299,7 +295,7 @@
         <div class="toggle" id="toggleBkv" title="GTFS / BKV (ha be van állítva)" role="switch" aria-checked="false">
           <div class="dot"></div><div style="font-weight:800; font-size:13px;">BKV</div>
         </div>
-        <button class="btn danger" id="btnShowAll" aria-label="Összes autó megjelenítése">Összes autó</button>
+        <button class="btn danger" id="btnShowAll" aria-label="Minden autó megjelenítése">Összes autó</button>
       </div>
 
       <div class="row" style="margin-top:10px; flex-wrap:wrap;">
@@ -359,9 +355,7 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
 
   <script>
-/* GTFS helper (opcionális)
-   Cél: időpontok nélkül, csak útvonal-háló
-*/
+/* GTFS helper (opcionális) */
 (() => {
   'use strict';
 
@@ -411,6 +405,7 @@
     },
 
     // Plan with a basic Dijkstra between nearby stops (no times).
+    // Returns geometry as straight lines between stops (since shapes are not used).
     async plan(from, to, opt = {}) {
       if (!GTFS._ready) return null;
 
@@ -428,7 +423,8 @@
       const N = GTFS._stops.length;
       const dist = new Float64Array(N);
       const prev = new Int32Array(N);
-      for (let i=0;i<N;i++){ dist[i]=Infinity; prev[i]=-1; }
+      const prevEdge = new Int32Array(N);
+      for (let i=0;i<N;i++){ dist[i]=Infinity; prev[i]=-1; prevEdge[i]=-1; }
 
       // simple binary heap
       const heap = [];
@@ -469,10 +465,7 @@
       let bestEnd = null;
 
       while (heap.length) {
-        const val = pop();
-        if(!val) break;
-        const [d,u] = val;
-        
+        const [d,u] = pop();
         if (d !== dist[u]) continue;
         if (endSet.has(u)) { bestEnd = u; break; }
         for (let ei=0; ei<GTFS._adj[u].length; ei++){
@@ -481,6 +474,7 @@
           if (nd < dist[e.to]) {
             dist[e.to] = nd;
             prev[e.to] = u;
+            prevEdge[e.to] = GTFS._edges.indexOf(e);
             push(nd, e.to);
           }
         }
@@ -541,50 +535,59 @@
 </script>
   <script>
 /* Carsharing tervező – index.html-hez
-   Javított, optimalizált verzió.
+   CORS JAVÍTOTT VERZIÓ + OPTIMALIZÁCIÓK
 */
 (() => {
   'use strict';
 
   // ----------------------- Config -----------------------
   const CFG = {
-    // MOL Limo publikus adatfájlok PROXY-n keresztül
+    // MOL Limo publikus adatfájlok - CORS Proxy-val
     LIMO_CARS_URLS: [
+      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/cars.js?u7XOvp6hNn'),
       'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/cars.js'),
-      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/cars.js?t=' + Date.now())
     ],
     LIMO_ZONES_URLS: [
+      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/homezones.js?UtaHbFc6QF'),
       'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/homezones.js'),
     ],
-    
+    // Budapest CITY_ID
     BUDAPEST_CITY_ID: '8ee26110-d8e9-4e0d-b4b7-e76fd4e00459',
 
     // OSRM
-    OSRM_FOOT: ['https://routing.openstreetmap.de/routed-foot'],
+    OSRM_FOOT: [
+      'https://routing.openstreetmap.de/routed-foot',
+    ],
     OSRM_CAR: [
       'https://routing.openstreetmap.de/routed-car',
-      'https://router.project-osrm.org'
+      'https://router.project-osrm.org',
     ],
 
-    // Hot zone
+    // Hot zone sugár (m)
     HOTZONE_RADIUS_M: 360,
     HOTZONE_RADIUS_MIN: 300,
     HOTZONE_RADIUS_MAX: 400,
 
+    // Gyalog: mennyi stop-ig engedjük el (BKV módnál)
     TRANSIT_MAX_WALK_TO_STOP_M: 900,
+
+    // Kijelöléskor szétfeszítés
     SPREAD_DISTANCE_M: 30,
     SPREAD_RING_M: 22,
 
-    // OPTIMIZATION: Megnövelt debounce idők a felesleges hívások csökkentésére
-    AUTOPLAN_DEBOUNCE_MS: 1200, 
+    // Debounce
+    AUTOPLAN_DEBOUNCE_MS: 1200, // Növeltük 700-ról
     REFRESH_COOLDOWN_MS: 1200,
 
-    // OPTIMIZATION: LRU Cache méret limit
-    MAX_CACHE_SIZE: 100,
+    // Cache limit
+    MAX_CACHE_SIZE: 100, // Új beállítás
 
+    // Map defaults
     DEFAULT_CENTER: [47.4979, 19.0402],
     DEFAULT_ZOOM: 12,
-    STORAGE_KEY: 'streetcrowd_planner_v4',
+
+    // Storage key
+    STORAGE_KEY: 'streetcrowd_planner_v5_cors',
   };
 
   // ----------------------- Helper Class: LRU Cache -----------------------
@@ -668,33 +671,34 @@
   // ----------------------- Global state -----------------------
   const state = {
     map: null,
+
     // layers
     tiles: null,
     carsCluster: null,
     carsSelectedLayer: null,
-    carsAllMarkers: new Map(),
-    carsSelectedMarkers: new Map(),
+    carsAllMarkers: new Map(),     // carId -> marker
+    carsSelectedMarkers: new Map(),// carId -> marker
     zoneLayer: null,
     hotZoneLayer: null,
     routeLayer: null,
     labelLayer: null,
 
     // data
-    cars: [],
-    carsById: new Map(),
-    limoZones: null,
+    cars: [],               // normalized cars
+    carsById: new Map(),    // id -> car
+    limoZones: null,        // L.GeoJSON or group
     limoZonesLoaded: false,
 
     // user
-    me: null,
+    me: null,               // {lat,lng,acc,ts}
     meMarker: null,
     meCircle: null,
 
     // selections
-    activeCarId: null,
+    activeCarId: null,      // for hotzone add mode
     selectedCars: new Set(),
     hiddenCars: new Set(),
-    zonesByCar: {},
+    zonesByCar: {},         // carId -> [{lat,lng,idx,labelId}, ...]
     hotRadius: CFG.HOTZONE_RADIUS_M,
 
     // mode flags
@@ -706,7 +710,7 @@
     // refresh throttling
     _lastRefresh: 0,
 
-    // caches - OPTIMIZATION: LRU használata
+    // caches (Optimalizált LRU)
     osrmCache: new SimpleLRU(CFG.MAX_CACHE_SIZE),
     elevationCache: new SimpleLRU(CFG.MAX_CACHE_SIZE),
   };
@@ -740,8 +744,11 @@
     state.map = map;
 
     map.on('click', onMapClick);
-    map.on('popupopen', () => map.closePopup());
 
+    // Better touch handling
+    map.on('popupopen', () => map.closePopup()); // we don't use popups
+
+    // Try get GPS immediately (auto)
     startGps();
 
     // UI hooks
@@ -774,23 +781,25 @@
     setZonesOn(state.zonesOn, true);
     setBkvOn(state.bkvOn, true);
 
+    // initial load
     refreshCars(true);
-    loadLimoZones();
+    loadLimoZones(); // async, but can fail gracefully
 
     // Javított GTFS inicializálás
     if (window.GTFS && typeof window.GTFS.init === 'function') {
       window.GTFS.init().then((ok) => {
         if (!ok) {
-           // Silent fail, csak nem engedjük bekapcsolni
-           if (state.bkvOn) setBkvOn(false);
+           if(state.bkvOn) {
+               showStatus('BKV: KI', 'GTFS graph.json hiányzik', 3000);
+               setBkvOn(false);
+           }
         }
       }).catch(() => {});
     }
     
-    // Globális hibakezelő
+    // Globális hibakezelés
     window.addEventListener('unhandledrejection', (event) => {
-      console.warn('Unhandled promise rejection:', event.reason);
-      // Nem zaklatjuk a usert minden aprósággal, de logoljuk
+        console.warn('Unhandled promise rejection:', event.reason);
     });
   }
 
@@ -813,9 +822,9 @@
         updatePills();
       },
       (err) => {
-        console.warn('GPS error', err);
+        showStatus('GPS hiba', err.message || String(err));
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
     );
   }
 
@@ -860,13 +869,14 @@
 
   // ----------------------- Limo data loading -----------------------
   
-  // Javított adatbetöltés fallback támogatással
+  // Javított adatlekérő a CORS proxy-hoz
   async function fetchTextAny(urls) {
     let lastErr = null;
     for (const u of urls) {
       try {
-        const urlWithCacheBust = u.includes('t=') ? u + Date.now() : u;
-        const r = await fetch(urlWithCacheBust, { cache: 'no-store' }); // mode: 'cors' elhagyva, hogy simple request maradjon ha lehet
+        // Cache buster csak ha nincs benne query
+        const urlToFetch = u.includes('corsproxy.io') ? u : (u + (u.includes('?') ? '&' : '?') + 't=' + Date.now());
+        const r = await fetch(urlToFetch);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return await r.text();
       } catch (e) {
@@ -876,35 +886,47 @@
     throw lastErr || new Error('fetch failed');
   }
 
-  // Javított parser: nem használ Function/eval-t közvetlenül a stringen
+  // Javított parser: biztonságosabb array kinyerés
   function extractAndParseJsArray(text) {
-     // Keresünk tömböt vagy objektumot a stringben
      const match = text.match(/=\s*(\[.*\]|\{.*\})\s*;?\s*$/s);
      if (match && match[1]) {
        try {
-         // Ez még mindig Function alapú, de csak a kivágott JSON-szerű részre
-         // Biztonságosabb lenne egy igazi JS parser, de böngészőben ez a standard hack
          return new Function('"use strict"; return (' + match[1] + ')')();
        } catch(e) { console.error('Parse error', e); return null; }
      }
      return null;
   }
 
+  function carIdFromObj(o){
+    return String(
+      o?.description?.id ||
+      o?.description?.plate ||
+      o?.description?.name ||
+      o?.id ||
+      o?.plate ||
+      o?.licensePlate ||
+      o?.license_plate ||
+      o?.car_id ||
+      o?.code ||
+      (o?.name ? o.name : '')
+    ) || ('car_' + Math.random().toString(16).slice(2));
+  }
+
   function normalizeCar(raw) {
     // MOL Limo formátum kezelés
-    const lat = raw?.location?.position?.lat ?? raw?.lat ?? raw?.latitude;
-    const lng = raw?.location?.position?.lon ?? raw?.lon ?? raw?.longitude;
+    const lat = raw?.location?.position?.lat ?? raw?.lat ?? raw?.latitude ?? raw?.Latitude ?? raw?.LAT ?? raw?.y;
+    const lng = raw?.location?.position?.lon ?? raw?.location?.position?.lng ?? raw?.lon ?? raw?.lng ?? raw?.longitude ?? raw?.Longitude ?? raw?.LNG ?? raw?.x;
     if (lat == null || lng == null) return null;
 
-    const id = raw.id || raw.plate || ('car_' + Math.random().toString(16).slice(2));
-    const plate = String(raw.plate || raw.licensePlate || id).toUpperCase().trim();
-    const model = raw.model || raw.type || '';
-    const fuel = raw.fuelLevel || raw.energyLevel || raw.batteryLevel;
+    const id = carIdFromObj(raw);
+    const plate = String(raw?.description?.plate ?? raw?.description?.name ?? raw?.plate ?? raw?.licensePlate ?? raw?.license_plate ?? raw?.reg ?? id).toUpperCase().trim();
+    const model = raw?.description?.model ?? raw?.model ?? raw?.type ?? raw?.carType ?? raw?.brand ?? raw?.vehicleType ?? '';
+    const fuel = raw?.status?.energyLevel ?? raw?.status?.fuelLevel ?? raw?.fuel ?? raw?.fuelLevel ?? raw?.battery ?? raw?.batteryLevel ?? raw?.charge ?? raw?.percent ?? raw?.stateOfCharge ?? raw?.fuel_percent;
 
     return {
       id, plate,
       model: String(model || '').trim(),
-      fuel: (typeof fuel === 'number') ? fuel : null,
+      fuel: (typeof fuel === 'number') ? fuel : (fuel != null && String(fuel).match(/^\d+(\.\d+)?$/) ? Number(fuel) : null),
       lat: Number(lat),
       lng: Number(lng),
       raw
@@ -917,39 +939,42 @@
     state._lastRefresh = now;
 
     setSubline(isInitial ? 'Autók betöltése…' : 'Frissítés…');
-    $('btnRefresh').classList.add('loading'); // UX: Loading indicator
+    $('btnRefresh').classList.add('loading');
 
     let rawCars = null;
     try {
       const text = await fetchTextAny(CFG.LIMO_CARS_URLS);
       rawCars = extractAndParseJsArray(text);
       if(!rawCars) {
-          // Ha nem a szokásos formátum, talán közvetlen JSON
-          try { rawCars = JSON.parse(text); } catch {}
+         try { rawCars = JSON.parse(text); } catch {}
       }
     } catch (e) {
-      setSubline('Autók: nem elérhető');
-      showStatus('Hiba', 'Nem sikerült betölteni az adatokat.', 4000);
+      setSubline('Autók: nem elérhető (CORS / hálózat)');
+      showStatus('Autók betöltése nem sikerült', 'Nem sikerült letölteni az adatokat.', 6000);
       $('btnRefresh').classList.remove('loading');
       updatePills();
+      renderCarList();
       return;
     }
 
-    if (!rawCars || (!Array.isArray(rawCars) && !rawCars.cars)) {
-        // Fallback: window.cars check, ha script tagként futna (itt nem releváns, de a robustness része)
+    const list = pickArrayLike(rawCars);
+    if (!list) {
+      setSubline('Autók: nem lista');
+      $('btnRefresh').classList.remove('loading');
+      return;
     }
-    const list = Array.isArray(rawCars) ? rawCars : (rawCars.cars || []);
 
+    // Normalize
     const cars = [];
     for (const rc of list) {
       const c = normalizeCar(rc);
       if (!c) continue;
-      // Filter BP
-      if (c.lat < 47.1 || c.lat > 47.9 || c.lng < 18.7 || c.lng > 19.6) continue;
+      // Filter to Budapest-ish bounding box
+      if (c.lat < 47.2 || c.lat > 47.8 || c.lng < 18.7 || c.lng > 19.6) continue;
       cars.push(c);
     }
 
-    // Cleanup old cars
+    // Determine disappeared cars
     const newIds = new Set(cars.map(c => c.id));
     for (const oldId of state.carsById.keys()) {
       if (!newIds.has(oldId)) {
@@ -988,6 +1013,14 @@
     $('btnRefresh').classList.remove('loading');
   }
 
+  function pickArrayLike(x) {
+    if (Array.isArray(x)) return x;
+    if (x && Array.isArray(x.cars)) return x.cars;
+    if (x && Array.isArray(x.vehicles)) return x.vehicles;
+    if (x && Array.isArray(x.data)) return x.data;
+    return null;
+  }
+
   async function loadLimoZones() {
     let hzText = null;
     try {
@@ -996,24 +1029,25 @@
       state.limoZonesLoaded = false;
       return;
     }
-
+    
     let hz = extractAndParseJsArray(hzText);
     let fc = null;
 
-    // Data format handling
-    if (hz && hz.type === 'FeatureCollection') {
-        fc = hz;
+    if (hz && typeof hz === 'object' && hz.type && (hz.type === 'FeatureCollection' || hz.type === 'Feature')) {
+      fc = hz;
     } else if (Array.isArray(hz)) {
-        const features = [];
-        for(const it of hz) {
-            if(it.cityId && it.cityId !== CFG.BUDAPEST_CITY_ID) continue;
-            const z = it.zone || it.geojson;
-            if(z) {
-                if(z.type === 'FeatureCollection') features.push(...z.features);
-                else features.push(z);
-            }
+      const features = [];
+      for (const it of hz) {
+        if (!it) continue;
+        if (it.cityId && CFG.BUDAPEST_CITY_ID && it.cityId !== CFG.BUDAPEST_CITY_ID) continue;
+        const z = it.zone ?? it.geojson ?? it.featureCollection ?? it;
+        if (z && z.type === 'FeatureCollection' && Array.isArray(z.features)) {
+          for (const f of z.features) features.push(f);
+        } else if (z && z.type === 'Feature') {
+          features.push(z);
         }
-        fc = { type: 'FeatureCollection', features };
+      }
+      fc = { type: 'FeatureCollection', features };
     }
 
     if (!fc || !fc.features || !fc.features.length) {
@@ -1027,7 +1061,7 @@
 
     state.limoZones = L.geoJSON(fc, {
       style: (feature) => {
-        const t = feature?.properties?.type; 
+        const t = feature?.properties?.type; // allowed / forbidden
         const isAllowed = (t === 'allowed');
         return {
           color: isAllowed ? 'rgba(34,197,94,.85)' : 'rgba(239,68,68,.85)',
@@ -1047,7 +1081,7 @@
     state.zonesOn = !!on;
     const el = $('toggleZones');
     el.classList.toggle('on', state.zonesOn);
-    el.setAttribute('aria-checked', state.zonesOn); // Accessibility
+    el.setAttribute('aria-checked', state.zonesOn);
     if (state.limoZonesLoaded && state.limoZones) {
       if (state.zonesOn) state.zoneLayer.addLayer(state.limoZones);
       else state.zoneLayer.removeLayer(state.limoZones);
@@ -1063,7 +1097,7 @@
     if (!silent) saveState();
 
     if (state.bkvOn && !(window.GTFS && window.GTFS.isReady && window.GTFS.isReady())) {
-      showStatus('BKV mód', 'GTFS háló nincs előkészítve.', 5000);
+      showStatus('BKV mód', 'GTFS háló nincs előkészítve (gtfs/graph.json).', 5000);
       state.bkvOn = false;
       el.classList.remove('on');
       if (!silent) saveState();
@@ -1090,8 +1124,7 @@
           display:flex;align-items:center;justify-content:center;
           border:1px solid rgba(255,255,255,.12);
         ">
-          <!-- Simple Car SVG -->
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="white" opacity=".9">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="white" opacity=".9" aria-hidden="true">
             <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
           </svg>
         </div>
@@ -1102,10 +1135,7 @@
   }
 
   function renderCarsOnMap() {
-    // Only update changed markers
-    // For simplicity in this structure: add missing, remove stale
-    
-    // Normal cluster markers
+    // Diff update: only add new, remove old
     for (const c of state.cars) {
       if (!state.carsAllMarkers.has(c.id)) {
         const m = L.marker([c.lat, c.lng], { icon: carIcon(false) });
@@ -1113,10 +1143,12 @@
         m.on('click', () => onCarClick(c.id));
         state.carsAllMarkers.set(c.id, m);
         state.carsCluster.addLayer(m);
+      } else {
+        // update pos if moved? usually not needed for Limo cars often
+        // const m = state.carsAllMarkers.get(c.id);
+        // m.setLatLng([c.lat, c.lng]);
       }
-      // Update label/icon if needed (omitted for speed)
     }
-
     // Selected markers
     for (const id of state.selectedCars) {
       const c = state.carsById.get(id);
@@ -1132,7 +1164,8 @@
 
   function onCarClick(id) {
     if (state.planActive) {
-      // If planning, maybe focus?
+      // If user clicks a car while plan is active, maybe switch to it?
+      // For now, let's just select it.
     }
     state.activeCarId = id;
     if (!state.selectedCars.has(id)) {
@@ -1179,10 +1212,23 @@
 
   function showAllCars() {
     state.hiddenCars.clear();
-    state.selectedCars.clear(); // optional: clear selection too? let's keep selection
+    // state.selectedCars.clear(); // keep selection?
     applyVisibilityRules();
     showStatus('Összes autó', 'Szűrők törölve.');
     saveState();
+  }
+
+  function updatePills() {
+    $('pillCars').textContent = `Autók: ${state.cars.length}`;
+    $('pillSelected').textContent = `Kijelölt: ${state.selectedCars.size}`;
+    let targets = 0;
+    for (const k in state.zonesByCar) targets += state.zonesByCar[k].length;
+    $('pillTargets').textContent = `Hot zone: ${targets}`;
+    
+    // Nearest info
+    if (state.me) {
+      // ... (optional calc)
+    }
   }
 
   // ----------------------- Hot zones -----------------------
@@ -1196,7 +1242,7 @@
     if (!state.zonesByCar[state.activeCarId]) state.zonesByCar[state.activeCarId] = [];
     const list = state.zonesByCar[state.activeCarId];
     
-    // Limit zones per car
+    // Limit
     if (list.length >= 3) {
       showStatus('Limit', 'Max 3 zóna autónként.');
       return;
@@ -1215,8 +1261,7 @@
 
   function renderHotZones() {
     state.hotZoneLayer.clearLayers();
-    let count = 0;
-
+    
     const carIds = Object.keys(state.zonesByCar);
     for (const cid of carIds) {
       if (!state.selectedCars.has(cid)) continue;
@@ -1225,7 +1270,6 @@
       if (!car || !zones) continue;
 
       for (const z of zones) {
-        count++;
         // Circle
         L.circle([z.lat, z.lng], {
           radius: state.hotRadius,
@@ -1248,8 +1292,6 @@
         m.on('click', () => removeZone(cid, z.idx));
       }
     }
-    
-    $('pillTargets').textContent = `Hot zone: ${count}`;
   }
 
   function removeZone(cid, idx) {
@@ -1276,27 +1318,27 @@
     const term = $('carSearch').value.toLowerCase().trim();
     // Sort: selected first, then dist from me? for now just list
     
-    // Performance: limit render count
+    // Performance: limit render
     let count = 0;
-    const MAX_ITEMS = 50;
+    const MAX = 60;
 
-    // Create array to sort
-    const items = state.cars.filter(c => {
-       if (term && !c.plate.toLowerCase().includes(term) && !c.model.toLowerCase().includes(term)) return false;
-       return true;
-    });
-
-    // Sort by selection
+    const items = [];
+    for (const c of state.cars) {
+      if (term && !c.plate.toLowerCase().includes(term) && !c.model.toLowerCase().includes(term)) continue;
+      items.push(c);
+    }
+    
+    // Sort selected to top
     items.sort((a,b) => {
-        const sa = state.selectedCars.has(a.id);
-        const sb = state.selectedCars.has(b.id);
-        if(sa && !sb) return -1;
-        if(!sa && sb) return 1;
+        const s1 = state.selectedCars.has(a.id);
+        const s2 = state.selectedCars.has(b.id);
+        if (s1 && !s2) return -1;
+        if (!s1 && s2) return 1;
         return 0;
     });
 
     for (const c of items) {
-      if (count++ > MAX_ITEMS) break;
+      if (count++ > MAX) break;
       
       const div = document.createElement('div');
       div.className = 'carItem';
@@ -1337,36 +1379,33 @@
     $('drawerSub').textContent = `Összesen: ${state.cars.length}`;
   }
 
-  // ----------------------- Planning (Simplified) -----------------------
+  // ----------------------- Planning -----------------------
   
-  // OPTIMIZATION: Debounced plan function
+  // Debounced plan call
   const planNow = debounce(async (force) => {
     if (!force && !state.planActive) return;
     
     // Gather targets
     const tasks = [];
-    // 1. Me -> Nearest Car (if no selected car with zones, or generally?)
-    // For this simple version: Me -> Selected Cars OR Me -> Nearest if none selected
+    
+    // Check if we have selected cars
+    const selectedIds = [...state.selectedCars];
+    if (!selectedIds.length) {
+      if (force) showStatus('Tervezés', 'Nincs kijelölt autó.');
+      return;
+    }
     
     if (!state.me) {
       if (force) showStatus('GPS', 'Nincs pozíció.');
       return;
     }
 
-    // Targets: cars that are selected
-    const targetCars = [...state.selectedCars].map(id => state.carsById.get(id)).filter(Boolean);
+    // Sort selected cars by distance to me?
+    // For now, take the first one or active one
+    let carId = state.activeCarId;
+    if (!carId || !state.selectedCars.has(carId)) carId = selectedIds[0];
     
-    if (targetCars.length === 0) {
-        // Find nearest car
-        // ... (omitted for brevity, assume user selects)
-        if(force) showStatus('Tervezés', 'Válassz ki egy autót!');
-        return;
-    }
-
-    $('btnPlan').classList.add('loading');
-    
-    // Simple logic: Calculate Route to FIRST selected car
-    const car = targetCars[0];
+    const car = state.carsById.get(carId);
     
     // 1. Walk to Car
     const walkRes = await fetchRoute('foot', state.me, { lat: car.lat, lng: car.lng });
@@ -1382,15 +1421,14 @@
     state.plan = { car, walkRes, driveRes, zone };
     state.planActive = true;
     showPlanView(state.plan);
-    
-    $('btnPlan').classList.remove('loading');
 
   }, CFG.AUTOPLAN_DEBOUNCE_MS);
 
-  // OSRM fetch with Cache
+
   async function fetchRoute(mode, from, to) {
-    const key = `${mode}:${from.lat.toFixed(4)},${from.lng.toFixed(4)}:${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
-    if (state.osrmCache.has(key)) return state.osrmCache.get(key);
+    // Cache key
+    const k = `${mode}:${from.lat.toFixed(4)},${from.lng.toFixed(4)}:${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+    if (state.osrmCache.has(k)) return state.osrmCache.get(k);
 
     const baseUrl = (mode === 'foot') ? CFG.OSRM_FOOT[0] : CFG.OSRM_CAR[0];
     const url = `${baseUrl}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
@@ -1406,7 +1444,7 @@
             dur: j.routes[0].duration,
             geo: j.routes[0].geometry
         };
-        state.osrmCache.set(key, res);
+        state.osrmCache.set(k, res);
         return res;
     } catch(e) {
         console.error(e);
@@ -1465,9 +1503,10 @@
         </div>`;
     }
     
-    // Fit bounds
     if (!opts.keepFocus && walkRes) {
-        // fit to bounds of route... (omitted)
+        const b = L.geoJSON(walkRes.geo).getBounds();
+        if(driveRes) b.extend(L.geoJSON(driveRes.geo).getBounds());
+        state.map.fitBounds(b, { padding: [50,50] });
     }
   }
 
@@ -1480,12 +1519,10 @@
   }
 
   function applyVisibilityRules() {
-    // Re-render cluster to hide/show
     state.carsCluster.clearLayers();
-    
     for (const c of state.cars) {
       if (state.hiddenCars.has(c.id)) {
-         // Don't add to cluster
+         // skip
       } else {
          const m = state.carsAllMarkers.get(c.id);
          if (m) state.carsCluster.addLayer(m);
@@ -1493,14 +1530,8 @@
     }
   }
 
-  // ----------------------- Misc -----------------------
-  function updatePills() {
-    $('pillCars').textContent = `Autók: ${state.cars.length}`;
-    $('pillSelected').textContent = `Kijelölt: ${state.selectedCars.size}`;
-  }
-
   function spreadSelectedCars() {
-     // Spiderfy logic place holder - markercluster handles most
+     // Spiderfy logic placeholder
   }
 
   // Init
