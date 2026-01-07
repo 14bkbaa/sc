@@ -548,15 +548,15 @@
 
   // ----------------------- Config -----------------------
   const CFG = {
-    // MOL Limo publikus adatfájlok
+    // MOL Limo publikus adatfájlok PROXY-n keresztül
     LIMO_CARS_URLS: [
-      'https://mollimo.hu/data/cars.js',
-      'https://mollimo.hu/data/cars.js?t=' // Cache buster fallback
+      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/cars.js'),
+      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/cars.js?t=' + Date.now())
     ],
     LIMO_ZONES_URLS: [
-      'https://mollimo.hu/data/homezones.js',
-      'https://mollimo.hu/data/homezones.js?t='
+      'https://corsproxy.io/?' + encodeURIComponent('https://mollimo.hu/data/homezones.js'),
     ],
+    
     BUDAPEST_CITY_ID: '8ee26110-d8e9-4e0d-b4b7-e76fd4e00459',
 
     // OSRM
