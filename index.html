@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1220" />
-  <title>Carsharing tervező</title>
+  <title>Carsharing tervező (MOL Limo + Hot zone)</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
@@ -14,7 +13,6 @@
   <style>
     :root{
       --bg: rgba(12,18,28,.88);
-      --bg2: rgba(12,18,28,.74);
       --text: #f3f7ff;
       --muted: rgba(243,247,255,.68);
       --line: rgba(255,255,255,.10);
@@ -26,14 +24,10 @@
       --r: 16px;
     }
     html, body { height: 100%; margin: 0; }
-    body {
-      background:#000;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      overscroll-behavior: none;
-      -webkit-tap-highlight-color: transparent;
-    }
+    body { background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
     #map { position: fixed; inset: 0; }
 
+    /* Floating controls */
     .hud{
       position: fixed;
       z-index: 1000;
@@ -57,8 +51,9 @@
     }
     .row{ display:flex; gap:8px; align-items:center; }
     .pad{ padding: 10px; }
-    .title{ font-weight: 800; font-size: 14px; letter-spacing: .2px; }
+    .title{ font-weight: 800; font-size: 14px; }
     .sub{ font-size: 12px; color: var(--muted); }
+
     .btn{
       appearance: none; border: 1px solid var(--line);
       background: rgba(255,255,255,.06);
@@ -70,13 +65,11 @@
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
-      touch-action: manipulation;
     }
     .btn:active{ transform: scale(.99); }
     .btn.primary{ border-color: rgba(22,163,74,.55); background: rgba(22,163,74,.20); }
     .btn.danger{ border-color: rgba(220,38,38,.55); background: rgba(220,38,38,.18); }
     .btn.warn{ border-color: rgba(255,176,0,.55); background: rgba(255,176,0,.18); }
-    .btn.ghost{ background: transparent; }
     .btn.small{ padding: 8px 10px; font-size: 12px; }
 
     .toggle{
@@ -87,17 +80,37 @@
       display:flex; gap:8px; align-items:center;
       cursor: pointer;
       user-select: none;
-      touch-action: manipulation;
     }
     .dot{ width:10px; height:10px; border-radius: 999px; background: rgba(255,255,255,.25); }
     .toggle.on .dot{ background: var(--accent); }
 
-    /* Drawer */
+    /* Status bar */
+    .statusbar{
+      position: fixed; z-index: 1400;
+      left: 10px; right: 10px; bottom: 10px;
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      padding: 10px 12px;
+      background: rgba(0,0,0,.82);
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.35;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      display:none;
+      max-width: 900px;
+      margin: 0 auto;
+      box-shadow: var(--shadow);
+    }
+    .statusbar.show{ display:block; }
+    .statusbar b{ font-size: 14px; }
+    .statusbar .muted{ color: rgba(255,255,255,.75); }
+
+    /* Car list drawer */
     .drawer{
       position: fixed; z-index: 1300;
       right: 10px; top: 10px;
       width: min(440px, calc(100vw - 20px));
-      max-height: min(84vh, 780px);
+      max-height: min(84vh, 820px);
       display:none;
     }
     .drawer.show{ display:block; }
@@ -107,10 +120,10 @@
       border-bottom: 1px solid rgba(255,255,255,.10);
       background: rgba(0,0,0,.30);
     }
-    .drawerBody{ max-height: calc(min(84vh, 780px) - 52px); overflow: auto; padding: 10px 10px; }
+    .drawerBody{ max-height: calc(min(84vh, 820px) - 56px); overflow: auto; padding: 10px 10px; }
     .search{
       width: 100%;
-      padding: 12px 12px;
+      padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,.10);
       background: rgba(0,0,0,.28);
@@ -118,49 +131,70 @@
       outline: none;
       font-size: 14px;
     }
-
     .carItem{
       display:flex; align-items:center; justify-content:space-between; gap:10px;
       padding: 10px 8px;
       border-bottom: 1px dashed rgba(255,255,255,.12);
     }
-    .carItem.active{
-      background: rgba(255,176,0,.08);
-      border-bottom-color: rgba(255,176,0,.25);
-    }
     .carLeft{ display:flex; gap:10px; align-items:flex-start; min-width: 0; }
     .chk{
-      width: 22px; height: 22px;
+      width: 20px; height: 20px;
       accent-color: var(--accent);
       flex: 0 0 auto;
-      margin-top: 1px;
+      margin-top: 2px;
     }
-    .carMain{ min-width: 0; cursor: pointer; }
-    .plate{ font-weight: 900; letter-spacing: .6px; }
-    .carMeta{
-      font-size: 12px;
-      color: rgba(255,255,255,.72);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .tag{
+    .carMain{ min-width: 0; }
+    .plate{ font-weight: 900; letter-spacing: .5px; }
+    .carMeta{ font-size: 12px; color: rgba(255,255,255,.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .carBtns{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .carBtns .btn{ padding: 8px 10px; font-size: 12px; }
+
+    .badgeHot{
       display:inline-flex;
       align-items:center;
+      gap:6px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: rgba(255,255,255,.80);
       padding: 4px 8px;
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(0,0,0,.22);
-      font-size: 11px;
-      color: rgba(255,255,255,.80);
-      margin-top: 6px;
-      gap:6px;
+      width: fit-content;
     }
-    .carBtns{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-    .carBtns .btn{ padding: 8px 10px; font-size: 12px; }
+
+    /* Leaflet marker labels */
+    .plate-label{
+      background: rgba(0,0,0,.70);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      pointer-events: none;
+    }
+    .target-label{
+      background: rgba(220,38,38,.92);
+      color: #fff;
+      border-radius: 999px;
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,.18);
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      pointer-events: none;
+    }
+    .target-label small{
+      font-weight: 800; opacity: .9;
+    }
 
     /* Plan sheet */
     .sheet{
-      position: fixed; z-index: 1100;
+      position: fixed; z-index: 1200;
       left: 10px; right: 10px;
+      bottom: 10px;
       bottom: calc(10px + env(safe-area-inset-bottom));
       max-width: 980px;
       margin: 0 auto;
@@ -169,6 +203,7 @@
       display:none;
     }
     .sheet.show{ display:block; }
+    .sheet.collapsed .sheetBody{ display:none; }
     .sheetHeader{
       display:flex; align-items:center; justify-content:space-between; gap:8px;
       padding: 12px 12px;
@@ -177,7 +212,7 @@
     }
     .sheetHeader .title{ font-size: 14px; }
     .sheetBody{
-      max-height: min(56vh, 540px);
+      max-height: min(56vh, 560px);
       overflow: auto;
       padding: 10px 12px;
     }
@@ -196,93 +231,54 @@
       font-weight: 900;
       background: rgba(255,255,255,.10);
       border: 1px solid rgba(255,255,255,.12);
-      flex: 0 0 auto;
     }
     .stepTitle{ font-weight: 900; }
-    .stepMeta{ font-size: 12px; color: rgba(255,255,255,.76); margin-top: 4px; line-height: 1.35; }
+    .stepMeta{ font-size: 12px; color: rgba(255,255,255,.78); margin-top: 4px; line-height: 1.45; }
 
-    /* Bottom status strip */
-    .statusbar{
-      position: fixed; z-index: 1200;
-      left: 0; right: 0; bottom: 0;
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-      background: rgba(0,0,0,.86);
-      color: #fff;
-      font-size: 13px;
-      line-height: 1.35;
-      border-top: 1px solid rgba(255,255,255,.12);
-      display:none;
-    }
-    .statusbar.show{ display:block; }
-    .statusbar b{ font-size: 14px; }
-    .statusbar .muted{ color: rgba(255,255,255,.7); }
-
-    /* Zone editor */
-    .zoneEditor{
-      position: fixed;
-      z-index: 1400;
+    /* Hotzone action bar */
+    .hzbar{
+      position: fixed; z-index: 1500;
       left: 10px; right: 10px;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      max-width: 720px;
+      bottom: 78px;
+      bottom: calc(78px + env(safe-area-inset-bottom));
+      max-width: 900px;
       margin: 0 auto;
       display:none;
-    }
-    .zoneEditor.show{ display:block; }
-    .zoneEditor .pad{ padding: 10px; }
-    .zoneEditor .row{ justify-content: space-between; }
-    .zoneEditor .actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-
-    /* Marker labels */
-    .plate-label{
-      background: rgba(0,0,0,.70);
-      color: #fff;
+      border-radius: 16px;
+      padding: 10px 10px;
+      background: rgba(0,0,0,.78);
       border: 1px solid rgba(255,255,255,.14);
-      border-radius: 999px;
-      padding: 4px 8px;
-      font-weight: 900;
-      font-size: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35);
-      pointer-events: none;
-      white-space: nowrap;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
     }
-    .target-label{
-      background: rgba(220,38,38,.92);
-      color: #fff;
-      border-radius: 999px;
-      padding: 4px 8px;
-      border: 1px solid rgba(255,255,255,.18);
-      font-weight: 900;
-      font-size: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35);
-      white-space: nowrap;
-    }
-    .target-label small{ font-weight: 900; opacity: .9; }
+    .hzbar.show{ display:block; }
+    .hzbar .row{ justify-content: space-between; }
+    .hzbar .left{ min-width: 0; }
+    .hzbar .left .t{ font-weight: 900; }
+    .hzbar .left .s{ font-size: 12px; color: rgba(255,255,255,.75); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+    /* Mobile */
     @media (max-width: 720px){
-      .hud{ left: 8px; right: 8px; top: 8px; max-width: calc(100vw - 16px); }
+      .hud{ left: 8px; right: 8px; top: 8px; max-width: none; }
       .drawer{
-        right: 8px; left: 8px;
+        left: 8px; right: 8px;
         top: auto;
+        bottom: 8px;
         bottom: calc(8px + env(safe-area-inset-bottom));
         width: auto;
         max-height: min(78vh, 720px);
-        border-radius: 18px;
       }
-      .drawerBody{ max-height: calc(min(78vh, 720px) - 52px); }
-      .sheet{
-        left: 8px; right: 8px;
-        bottom: calc(8px + env(safe-area-inset-bottom));
-        border-radius: 18px;
-      }
-      .sheetBody{ max-height: min(60vh, 560px); }
-      .zoneEditor{ left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); }
-      .btn{ padding: 12px 14px; font-size: 14px; }
+      .drawerBody{ max-height: calc(min(78vh, 720px) - 56px); }
+      .sheet{ left: 8px; right: 8px; }
+      .statusbar{ left: 8px; right: 8px; }
+      .hzbar{ left: 8px; right: 8px; bottom: calc(78px + env(safe-area-inset-bottom)); }
+      .btn{ padding: 12px 14px; }
       .btn.small{ padding: 10px 12px; font-size: 13px; }
       .toggle{ padding: 12px 14px; }
-      .chk{ width: 24px; height: 24px; }
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
@@ -290,29 +286,25 @@
   <div class="hud">
     <div class="card pad">
       <div class="row" style="justify-content:space-between; align-items:flex-start;">
-        <div>
+        <div style="min-width:0;">
           <div class="title">Carsharing tervező</div>
           <div class="sub" id="subLine">Betöltés…</div>
         </div>
         <div class="row" style="gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="btn small ghost" id="btnCars">Autók</button>
+          <button class="btn small" id="btnCars">Autók</button>
           <button class="btn small" id="btnRefresh">Frissítés</button>
+          <button class="btn small warn" id="btnClearAll">Törlés</button>
         </div>
       </div>
 
       <div class="row" style="margin-top:10px; flex-wrap:wrap;">
         <button class="btn primary" id="btnPlan">Tervezés</button>
-        <button class="btn warn" id="btnClearSel">Kijelölések törlése</button>
-
         <div class="toggle" id="toggleZones" title="MOL Limo zónák">
           <div class="dot"></div><div style="font-weight:900; font-size:13px;">Zónák</div>
         </div>
-        <div class="toggle" id="toggleBkv" title="BKV (GTFS graph.json szükséges)">
+        <div class="toggle" id="toggleBkv" title="BKV (GTFS graph.json kell)">
           <div class="dot"></div><div style="font-weight:900; font-size:13px;">BKV</div>
         </div>
-
-        <button class="btn small" id="btnExitActive" style="display:none;">Összes</button>
-        <button class="btn small ghost" id="btnShowPlan" style="display:none;">Terv</button>
       </div>
     </div>
   </div>
@@ -320,11 +312,13 @@
   <!-- Drawer -->
   <div class="drawer card" id="drawer">
     <div class="drawerHeader">
-      <div>
+      <div style="min-width:0;">
         <div class="title">Autók</div>
         <div class="sub" id="drawerSub">—</div>
       </div>
       <div class="row" style="gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+        <button class="btn small" id="btnSelectAll">Mind</button>
+        <button class="btn small warn" id="btnClearSel">Törlés</button>
         <button class="btn small" id="btnCloseDrawer">Bezár</button>
       </div>
     </div>
@@ -332,9 +326,9 @@
       <input class="search" id="carSearch" placeholder="Keresés (rendszám / típus)..." />
       <div style="height:10px;"></div>
       <div id="carList"></div>
-      <div style="height:10px;"></div>
+      <div style="height:8px;"></div>
       <div class="sub">
-        Tipp: pipáld ki az autót → kattints rá (listában vagy térképen) → térképre katt = hot zone.
+        <b>Használat:</b> pipáld ki az autókat → válassz <b>Hot zone</b>-t → térképre katt = hot zone.
       </div>
     </div>
   </div>
@@ -342,14 +336,14 @@
   <!-- Plan sheet -->
   <div class="sheet card" id="sheet">
     <div class="sheetHeader">
-      <div>
+      <div style="min-width:0;">
         <div class="title" id="sheetTitle">Kész</div>
         <div class="sub" id="sheetSub">—</div>
       </div>
       <div class="row" style="gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-        <button class="btn small" id="btnMinSheet">Csuk</button>
         <button class="btn small" id="btnReplan">Újratervezés</button>
-        <button class="btn small danger" id="btnClosePlan">Bezár</button>
+        <button class="btn small" id="btnCollapse">Csuk</button>
+        <button class="btn small danger" id="btnExitPlan">Kilép</button>
       </div>
     </div>
     <div class="sheetBody">
@@ -357,38 +351,37 @@
     </div>
   </div>
 
-  <!-- Zone editor -->
-  <div class="zoneEditor card" id="zoneEditor">
-    <div class="pad">
-      <div class="row">
-        <div style="min-width:0;">
-          <div class="title" id="zeTitle">Hot zone</div>
-          <div class="sub" id="zeSub">—</div>
-        </div>
-        <div class="actions">
-          <button class="btn warn small" id="btnMoveZone">Áthelyezés</button>
-          <button class="btn danger small" id="btnDeleteZone">Törlés</button>
-          <button class="btn small" id="btnCloseZoneEditor">Mégse</button>
-        </div>
+  <!-- Hotzone action bar -->
+  <div class="hzbar" id="hzbar">
+    <div class="row">
+      <div class="left" style="min-width:0;">
+        <div class="t" id="hzTitle">Hot zone</div>
+        <div class="s" id="hzSub">—</div>
+      </div>
+      <div class="row" style="gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+        <button class="btn small" id="btnHzMove">Áthelyez</button>
+        <button class="btn small danger" id="btnHzDelete">Törlés</button>
+        <button class="btn small" id="btnHzCancel">Mégse</button>
       </div>
     </div>
   </div>
 
-  <!-- Status bar -->
+  <!-- Status -->
   <div class="statusbar" id="statusbar">
     <b id="statusTitle">—</b><br>
     <span class="muted" id="statusText">—</span>
   </div>
 
+  <!-- JS libs -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
 
   <script>
-/* -------- GTFS helper (opcionális) --------
-   Vár: ./gtfs/graph.json
+/* GTFS helper (opcionális)
+   graph.json minimális formátuma:
    {
-     "stops":[{"id":"..","name":"..","lat":..,"lon":..},...],
-     "edges":[{"from":0,"to":1,"w":180,"route":"4-6","type":0}, ...]
+     "stops": [{"id":"...", "name":"...", "lat":47..., "lon":19...}, ...],
+     "edges": [{"from":0,"to":123,"w":180,"route":"4-6","type":0}, ...]
    }
 */
 (() => {
@@ -410,17 +403,13 @@
         GTFS._stops = j.stops;
         GTFS._edges = j.edges;
 
+        // adjacency: store edge indices
         GTFS._adj = Array.from({ length: GTFS._stops.length }, () => []);
         for (let idx = 0; idx < GTFS._edges.length; idx++) {
           const e = GTFS._edges[idx];
           if (typeof e.from !== 'number' || typeof e.to !== 'number' || typeof e.w !== 'number') continue;
-          GTFS._adj[e.from].push({
-            to: e.to,
-            w: e.w,
-            route: e.route ?? null,
-            type: e.type ?? null,
-            idx
-          });
+          if (!GTFS._adj[e.from]) continue;
+          GTFS._adj[e.from].push(idx);
         }
 
         GTFS._ready = true;
@@ -431,6 +420,7 @@
     },
 
     isReady() { return GTFS._ready; },
+    getStop(i){ return (GTFS._ready && GTFS._stops && GTFS._stops[i]) ? GTFS._stops[i] : null; },
 
     nearestStops(pt, k = 6, maxM = 1200) {
       if (!GTFS._ready) return [];
@@ -444,13 +434,13 @@
       return res.slice(0, k);
     },
 
-    // Dijkstra multiple sources, returns walking+transit estimate and stop-chain meta
+    // Dijkstra multiple sources -> one of endStops
     async plan(from, to, opt = {}) {
       if (!GTFS._ready) return null;
 
       const maxWalk = opt.maxWalkToStopM ?? 900;
-      const startStops = GTFS.nearestStops(from, 8, maxWalk);
-      const endStops = GTFS.nearestStops(to, 8, maxWalk);
+      const startStops = GTFS.nearestStops(from, 6, maxWalk);
+      const endStops = GTFS.nearestStops(to, 6, maxWalk);
       if (!startStops.length || !endStops.length) return null;
 
       const walkSpeed = 1.25; // m/s
@@ -462,7 +452,7 @@
       const prevEdgeIdx = new Int32Array(N);
       for (let i=0;i<N;i++){ dist[i]=Infinity; prev[i]=-1; prevEdgeIdx[i]=-1; }
 
-      // Binary heap
+      // binary heap
       const heap = [];
       const push = (d, i) => { heap.push([d,i]); siftUp(heap.length-1); };
       const pop = () => {
@@ -501,20 +491,20 @@
       let bestEnd = null;
 
       while (heap.length) {
-        const item = pop();
-        if (!item) break;
-        const [d,u] = item;
+        const top = pop();
+        if (!top) break;
+        const [d,u] = top;
         if (d !== dist[u]) continue;
         if (endSet.has(u)) { bestEnd = u; break; }
 
-        const adj = GTFS._adj[u];
-        for (let k=0; k<adj.length; k++){
-          const e = adj[k];
+        const adj = GTFS._adj[u] || [];
+        for (const eIdx of adj){
+          const e = GTFS._edges[eIdx];
           const nd = d + e.w;
           if (nd < dist[e.to]) {
             dist[e.to] = nd;
             prev[e.to] = u;
-            prevEdgeIdx[e.to] = e.idx;
+            prevEdgeIdx[e.to] = eIdx;
             push(nd, e.to);
           }
         }
@@ -522,59 +512,49 @@
 
       if (bestEnd == null) return null;
 
-      // choose end walking distance for this bestEnd
+      // choose best end walking
       const endChoice = endStops.reduce((a,x)=> (x.i===bestEnd && x.d < (a?.d ?? Infinity)) ? x : a, null)
         || endStops[0];
 
       const total = dist[bestEnd] + walkCost(endChoice.d);
 
-      // Rebuild stop chain
+      // Reconstruct stop chain
       const chain = [];
       let cur = bestEnd;
       chain.push(cur);
       while (prev[cur] !== -1) { cur = prev[cur]; chain.push(cur); }
       chain.reverse();
 
-      // Collect routes used (in order, compressed)
-      const routes = [];
-      for (let i = 1; i < chain.length; i++){
-        const stop = chain[i];
-        const eIdx = prevEdgeIdx[stop];
-        const r = (eIdx >= 0 && GTFS._edges[eIdx]) ? (GTFS._edges[eIdx].route ?? null) : null;
-        if (!r) continue;
-        if (!routes.length || routes[routes.length-1] !== r) routes.push(String(r));
+      // Reconstruct edge chain
+      const edgeIdxs = [];
+      cur = bestEnd;
+      while (prevEdgeIdx[cur] !== -1) {
+        edgeIdxs.push(prevEdgeIdx[cur]);
+        cur = prev[cur];
       }
-      const uniqueRoutes = [];
-      for (const r of routes) if (!uniqueRoutes.includes(r)) uniqueRoutes.push(r);
+      edgeIdxs.reverse();
 
-      const boardStop = GTFS._stops[chain[0]]?.name ?? '—';
-      const alightStop = GTFS._stops[chain[chain.length-1]]?.name ?? '—';
-
-      // via points: from + sampled stops + to
-      const maxStopsForGeometry = 18;
-      const sampled = [];
-      if (chain.length <= maxStopsForGeometry) {
-        for (const idx of chain) sampled.push(GTFS._stops[idx]);
-      } else {
-        const step = Math.ceil(chain.length / maxStopsForGeometry);
-        for (let i=0;i<chain.length;i+=step) sampled.push(GTFS._stops[chain[i]]);
-        if (sampled[sampled.length-1] !== GTFS._stops[chain[chain.length-1]]) sampled.push(GTFS._stops[chain[chain.length-1]]);
+      const routesSet = new Set();
+      for (const ei of edgeIdxs){
+        const r = GTFS._edges[ei]?.route;
+        if (r && String(r).trim()) routesSet.add(String(r).trim());
       }
+      const routesUsed = Array.from(routesSet);
 
-      const viaPoints = [];
-      viaPoints.push({ lat: from.lat, lng: from.lng });
-      for (const s of sampled) viaPoints.push({ lat: s.lat, lng: s.lon });
-      viaPoints.push({ lat: to.lat, lng: to.lng });
+      const boardIdx = chain[0];
+      const alightIdx = bestEnd;
+
+      const boardStop = GTFS._stops[boardIdx];
+      const alightStop = GTFS._stops[alightIdx];
 
       return {
         totalDuration: total,
-        totalDistance: null,
-        viaPoints,
+        geometry: null, // geometry-t a fő modul OSRM-mel "útra húzza"
         meta: {
-          boardStop,
-          alightStop,
-          routes: uniqueRoutes,
-          stops: chain.length
+          routesUsed,
+          boardStop: boardStop ? { name: boardStop.name, lat: boardStop.lat, lng: boardStop.lon, idx: boardIdx } : null,
+          alightStop: alightStop ? { name: alightStop.name, lat: alightStop.lat, lng: alightStop.lon, idx: alightIdx } : null,
+          stopsCount: chain.length
         }
       };
     }
@@ -593,6 +573,14 @@
   </script>
 
   <script>
+/* Carsharing tervező
+   - Csak a bepipált autók látszanak
+   - Hot zone csak bepipált autóhoz
+   - Tervezés csak gombra
+   - Módosítás -> terv automatikusan törlődik
+   - Hot zone katt: törlés / áthelyezés
+   - BKV: vonalak + felszállás + leszállás, és OSRM-mel útra húzva
+*/
 (() => {
   'use strict';
 
@@ -616,14 +604,21 @@
 
     TRANSIT_MAX_WALK_TO_STOP_M: 900,
 
+    REFRESH_COOLDOWN_MS: 1200,
+
     DEFAULT_CENTER: [47.4979, 19.0402],
     DEFAULT_ZOOM: 12,
 
-    STORAGE_KEY: 'streetcrowd_planner_v6',
-    REFRESH_COOLDOWN_MS: 1200,
+    STORAGE_KEY: 'streetcrowd_planner_v5_selected_only',
   };
 
   const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
 
   function showStatus(title, text, ms = 2400) {
     const bar = $('statusbar');
@@ -635,13 +630,10 @@
       showStatus._t = setTimeout(() => bar.classList.remove('show'), ms);
     }
   }
-  function setSubline(text) { $('subLine').textContent = text; }
-  function clampNumber(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  function fmtKm(m) {
-    if (m == null || !isFinite(m)) return '—';
-    return (m/1000).toFixed(m >= 10000 ? 0 : 2) + ' km';
-  }
+  function setSubline(text) { $('subLine').textContent = text; }
+
+  function fmtKm(m) { return (m/1000).toFixed(m >= 10000 ? 0 : 2) + ' km'; }
   function fmtMin(s) {
     const min = Math.max(0, Math.round(s/60));
     if (min < 60) return `${min} perc`;
@@ -650,21 +642,47 @@
     return `${h} ó ${m} p`;
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[c]));
-  }
+  function clampNumber(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  function haversineM(lat1, lon1, lat2, lon2) {
-    const R = 6371000;
-    const toRad = (d) => d*Math.PI/180;
-    const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-    return 2*R*Math.asin(Math.sqrt(a));
-  }
+  // ---------------- State ----------------
+  const state = {
+    map: null,
+    tiles: null,
 
-  // ---------- Storage ----------
+    carsCluster: null,
+    labelLayer: null,
+    zoneLayer: null,
+    hotZoneLayer: null,
+    routeLayer: null,
+
+    cars: [],
+    carsById: new Map(),
+
+    selectedCars: new Set(),     // ONLY these appear on map
+    activeCarId: null,           // hotzone editing target
+    zonesByCar: {},              // carId -> [{lat,lng,createdAt},...]
+
+    hotRadius: CFG.HOTZONE_RADIUS_M,
+
+    zonesOn: false,
+    bkvOn: false,
+
+    planActive: false,
+    plan: null,
+
+    limoZones: null,
+    limoZonesLoaded: false,
+
+    me: null,
+    _lastRefresh: 0,
+
+    osrmCache: new Map(),
+
+    hzEditing: null, // {carId, idx}
+    hzMoving: null,  // {carId, idx}
+  };
+
+  // -------------- Storage ---------------
   function loadState() {
     try {
       const raw = localStorage.getItem(CFG.STORAGE_KEY);
@@ -673,77 +691,26 @@
     } catch { return null; }
   }
   function saveState() {
-    try {
-      const st = {
-        selected: Array.from(state.selectedCars),
-        activeCarId: state.activeCarId,
-        zonesByCar: state.zonesByCar,
-        hotRadius: state.hotRadius,
-        ui: {
-          zonesOn: state.zonesOn,
-          bkvOn: state.bkvOn
-        }
-      };
-      localStorage.setItem(CFG.STORAGE_KEY, JSON.stringify(st));
-    } catch {}
+    const st = {
+      selected: Array.from(state.selectedCars),
+      activeCarId: state.activeCarId,
+      zonesByCar: state.zonesByCar,
+      hotRadius: state.hotRadius,
+      ui: { zonesOn: state.zonesOn, bkvOn: state.bkvOn }
+    };
+    localStorage.setItem(CFG.STORAGE_KEY, JSON.stringify(st));
   }
 
-  // ---------- Global state ----------
-  const state = {
-    map: null,
-    tiles: null,
-
-    carsLayer: null,
-    labelLayer: null,
-    zoneLayer: null,
-    hotZoneLayer: null,
-    routeLayer: null,
-
-    cars: [],
-    carsById: new Map(),
-    carMarkers: new Map(),     // id -> marker
-    carLabelMarkers: new Map(),// id -> label marker
-
-    me: null,
-    meMarker: null,
-
-    limoZones: null,
-    limoZonesLoaded: false,
-
-    selectedCars: new Set(),
-    activeCarId: null,
-    zonesByCar: {},
-
-    hotRadius: CFG.HOTZONE_RADIUS_M,
-    zonesOn: false,
-    bkvOn: false,
-
-    planActive: false,
-    plan: null,
-    sheetMinimized: false,
-
-    moveZone: null, // {carId, zoneIndex}
-    editingZone: null, // {carId, zoneIndex}
-
-    _lastRefresh: 0,
-
-    osrmCache: new Map(),
-    elevationCache: new Map(),
-  };
-
-  // ---------- Plan invalidation ----------
   function invalidatePlan(reason) {
     if (!state.planActive) return;
-    clearPlan({ silent: true });
-    showStatus('Terv törölve', reason || 'Módosítottál valamit, ezért a terv automatikusan törlődött.', 3200);
+    clearPlan();
+    if (reason) showStatus('Terv törölve', reason, 2200);
   }
 
-  // ---------- Map init ----------
+  // -------------- Map init --------------
   function initMap() {
-    const map = L.map('map', {
-      zoomControl: true,
-      preferCanvas: true
-    }).setView(CFG.DEFAULT_CENTER, CFG.DEFAULT_ZOOM);
+    const map = L.map('map', { zoomControl: true, preferCanvas: true })
+      .setView(CFG.DEFAULT_CENTER, CFG.DEFAULT_ZOOM);
 
     state.tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -751,7 +718,7 @@
       crossOrigin: true,
     }).addTo(map);
 
-    state.carsLayer = L.markerClusterGroup({
+    state.carsCluster = L.markerClusterGroup({
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
       maxClusterRadius: 50,
@@ -767,85 +734,30 @@
 
     map.on('click', onMapClick);
 
-    // UI hooks
+    // UI
     $('btnRefresh').addEventListener('click', () => refreshCars(false));
     $('btnCars').addEventListener('click', () => toggleDrawer(true));
     $('btnCloseDrawer').addEventListener('click', () => toggleDrawer(false));
+    $('btnSelectAll').addEventListener('click', selectAllVisibleInList);
+    $('btnClearSel').addEventListener('click', clearSelections);
+    $('btnClearAll').addEventListener('click', clearSelections);
+
+    $('btnPlan').addEventListener('click', () => planNow(true));
+    $('btnReplan').addEventListener('click', () => planNow(true));
+    $('btnExitPlan').addEventListener('click', () => clearPlan());
+    $('btnCollapse').addEventListener('click', togglePlanCollapse);
+
+    $('toggleZones').addEventListener('click', () => setZonesOn(!state.zonesOn));
+    $('toggleBkv').addEventListener('click', () => setBkvOn(!state.bkvOn));
+
     $('carSearch').addEventListener('input', renderCarList);
 
-    $('btnClearSel').addEventListener('click', () => {
-      invalidatePlan('Kijelölések módosultak.');
-      state.selectedCars.clear();
-      state.activeCarId = null;
-      state.zonesByCar = {};
-      saveState();
-      renderCars();
-      renderHotZones();
-      renderCarList();
-      updateHudButtons();
-      showStatus('Kész', 'Kijelölések és hot zone-ok törölve.', 2000);
-    });
+    // Hotzone actionbar
+    $('btnHzCancel').addEventListener('click', closeHotZoneMenu);
+    $('btnHzDelete').addEventListener('click', deleteEditingHotZone);
+    $('btnHzMove').addEventListener('click', startMoveEditingHotZone);
 
-    $('toggleZones').addEventListener('click', () => {
-      invalidatePlan('Zónák kapcsoló módosult.');
-      setZonesOn(!state.zonesOn, false);
-    });
-    $('toggleBkv').addEventListener('click', () => {
-      invalidatePlan('BKV kapcsoló módosult.');
-      setBkvOn(!state.bkvOn, false);
-    });
-
-    $('btnPlan').addEventListener('click', () => planNow());
-    $('btnReplan').addEventListener('click', () => planNow());
-    $('btnClosePlan').addEventListener('click', () => clearPlan({ silent:false }));
-    $('btnMinSheet').addEventListener('click', () => minimizeSheet());
-    $('btnShowPlan').addEventListener('click', () => showSheet());
-
-    $('btnExitActive').addEventListener('click', () => {
-      invalidatePlan('Aktív autó módosult.');
-      state.activeCarId = null;
-      state.moveZone = null;
-      closeZoneEditor();
-      saveState();
-      renderCars();
-      renderHotZones();
-      renderCarList();
-      updateHudButtons();
-      showStatus('Nézet', 'Összes kijelölt autó látszik.', 1600);
-    });
-
-    // zone editor buttons
-    $('btnCloseZoneEditor').addEventListener('click', () => {
-      state.moveZone = null;
-      closeZoneEditor();
-      showStatus('Kész', 'Hot zone szerkesztés bezárva.', 1200);
-    });
-
-    $('btnDeleteZone').addEventListener('click', () => {
-      if (!state.editingZone) return;
-      invalidatePlan('Hot zone módosult.');
-      const { carId, zoneIndex } = state.editingZone;
-      const zs = state.zonesByCar[carId] || [];
-      zs.splice(zoneIndex, 1);
-      state.zonesByCar[carId] = zs;
-      // ha nincs több hotzone, maradhat kijelölve, de tervezéshez úgysem számít
-      state.moveZone = null;
-      closeZoneEditor();
-      saveState();
-      renderHotZones();
-      renderCarList();
-      showStatus('Törölve', `Hot zone #${zoneIndex+1} törölve.`, 1600);
-    });
-
-    $('btnMoveZone').addEventListener('click', () => {
-      if (!state.editingZone) return;
-      invalidatePlan('Hot zone módosult.');
-      state.moveZone = { ...state.editingZone };
-      closeZoneEditor();
-      showStatus('Áthelyezés', 'Koppints a térképen az új helyre.', 0);
-    });
-
-    // Load previous state
+    // Load stored
     const st = loadState();
     if (st) {
       state.selectedCars = new Set(st.selected || []);
@@ -859,6 +771,7 @@
     setZonesOn(state.zonesOn, true);
     setBkvOn(state.bkvOn, true);
 
+    // start GPS (needed for planning)
     startGps();
 
     // initial load
@@ -867,13 +780,18 @@
 
     // GTFS init (optional)
     if (window.GTFS && typeof window.GTFS.init === 'function') {
-      window.GTFS.init().then((ok) => {
-        if (!ok) showStatus('BKV: KI', 'GTFS graph.json hiányzik – a BKV mód nem elérhető.', 5000);
+      window.GTFS.init().then(ok => {
+        if (!ok && state.bkvOn) {
+          showStatus('BKV: KI', 'GTFS graph.json hiányzik – BKV mód kikapcsolva.', 4500);
+          state.bkvOn = false;
+          $('toggleBkv').classList.remove('on');
+          saveState();
+        }
       }).catch(()=>{});
     }
   }
 
-  // ---------- GPS ----------
+  // -------------- GPS --------------
   let gpsWatchId = null;
   function startGps() {
     if (!navigator.geolocation) {
@@ -886,38 +804,13 @@
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         state.me = { lat: latitude, lng: longitude, acc: accuracy, ts: Date.now() };
-        renderMe();
       },
-      (err) => {
-        showStatus('GPS hiba', err.message || String(err), 4000);
-      },
+      (err) => showStatus('GPS hiba', err.message || String(err), 4000),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
     );
   }
 
-  function renderMe() {
-    if (!state.me) return;
-    const ll = [state.me.lat, state.me.lng];
-
-    if (!state.meMarker) {
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:14px;height:14px;border-radius:999px;
-          background:#4ade80;
-          border:3px solid rgba(0,0,0,.55);
-          box-shadow:0 10px 30px rgba(0,0,0,.35);
-        "></div>`,
-        iconSize: [14,14],
-        iconAnchor: [7,7],
-      });
-      state.meMarker = L.marker(ll, { icon, interactive: false }).addTo(state.labelLayer);
-    } else {
-      state.meMarker.setLatLng(ll);
-    }
-  }
-
-  // ---------- Limo data loading (script-injection) ----------
+  // -------------- Data loading (MOL Limo) --------------
   function loadScriptOnce(url, timeoutMs=12000) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
@@ -1006,12 +899,12 @@
     if (lat == null || lng == null) return null;
 
     const id = carIdFromObj(raw);
-    const plate = String(raw?.description?.plate ?? raw?.description?.name ?? raw?.plate ?? raw?.licensePlate ?? raw?.license_plate ?? raw?.reg ?? id).toUpperCase().trim();
-    const model = raw?.description?.model ?? raw?.model ?? raw?.type ?? raw?.carType ?? raw?.brand ?? raw?.vehicleType ?? '';
+    const plate = String(raw?.description?.plate ?? raw?.description?.name ?? raw?.plate ?? raw?.licensePlate ?? raw?.license_plate ?? raw?.reg ?? id)
+      .toUpperCase().trim();
 
+    const model = raw?.description?.model ?? raw?.model ?? raw?.type ?? raw?.carType ?? raw?.brand ?? raw?.vehicleType ?? '';
     return {
-      id,
-      plate,
+      id, plate,
       model: String(model || '').trim(),
       lat: Number(lat),
       lng: Number(lng),
@@ -1024,21 +917,20 @@
     if (!isInitial && now - state._lastRefresh < CFG.REFRESH_COOLDOWN_MS) return;
     state._lastRefresh = now;
 
-    invalidatePlan('Frissítés történt.');
-
     setSubline(isInitial ? 'Autók betöltése…' : 'Frissítés…');
 
     let rawCars = null;
     try {
       rawCars = await loadGlobalArrayAny(CFG.LIMO_CARS_URLS, 'cars', 12000);
-    } catch (e) {
+    } catch {
       setSubline('Autók: nem elérhető (CORS / hálózat)');
       showStatus('Autók betöltése nem sikerült', 'A mollimo.hu adatfájl nem érhető el innen. A térkép működik, de autók nélkül.', 6000);
       state.cars = [];
       state.carsById = new Map();
-      renderCars();
+      cleanupSelectionsForMissingCars();
+      renderSelectionOnMap();
+      renderHotZones();
       renderCarList();
-      updateHudButtons();
       return;
     }
 
@@ -1052,35 +944,46 @@
     for (const rc of rawCars) {
       const c = normalizeCar(rc);
       if (!c) continue;
+      // Budapest-ish filter
       if (c.lat < 47.2 || c.lat > 47.8 || c.lng < 18.7 || c.lng > 19.6) continue;
       cars.push(c);
-    }
-
-    // cleanup disappeared
-    const newIds = new Set(cars.map(c => c.id));
-    for (const oldId of state.carsById.keys()) {
-      if (!newIds.has(oldId)) {
-        delete state.zonesByCar[oldId];
-        state.selectedCars.delete(oldId);
-        if (state.activeCarId === oldId) state.activeCarId = null;
-      }
     }
 
     state.cars = cars;
     state.carsById = new Map(cars.map(c => [c.id, c]));
 
-    // ha activeCarId már nincs kijelölve, dobjuk
+    cleanupSelectionsForMissingCars();
+
+    setSubline(`Autók betöltve: ${cars.length}`);
+    saveState();
+
+    renderSelectionOnMap();
+    renderHotZones();
+    renderCarList();
+  }
+
+  function cleanupSelectionsForMissingCars() {
+    const ids = new Set(state.cars.map(c => c.id));
+
+    // remove selected that disappeared
+    for (const id of Array.from(state.selectedCars)) {
+      if (!ids.has(id)) {
+        state.selectedCars.delete(id);
+        delete state.zonesByCar[id];
+        if (state.activeCarId === id) state.activeCarId = null;
+      }
+    }
+
+    // remove zones for disappeared or not selected
+    for (const carId of Object.keys(state.zonesByCar)) {
+      if (!ids.has(carId) || !state.selectedCars.has(carId)) {
+        delete state.zonesByCar[carId];
+      }
+    }
+
     if (state.activeCarId && !state.selectedCars.has(state.activeCarId)) {
       state.activeCarId = null;
     }
-
-    setSubline(`Autók betöltve: ${cars.length} • Kijelölt: ${state.selectedCars.size}`);
-    saveState();
-
-    renderCars();
-    renderHotZones();
-    renderCarList();
-    updateHudButtons();
   }
 
   async function loadLimoZones() {
@@ -1126,7 +1029,7 @@
         return {
           color: isAllowed ? 'rgba(34,197,94,.85)' : 'rgba(239,68,68,.85)',
           weight: 2,
-          fillColor: isAllowed ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.28)',
+          fillColor: isAllowed ? 'rgba(34,197,94,.22)' : 'rgba(239,68,68,.24)',
           fillOpacity: isAllowed ? 0.18 : 0.22,
         };
       },
@@ -1140,7 +1043,6 @@
   function setZonesOn(on, silent=false) {
     state.zonesOn = !!on;
     $('toggleZones').classList.toggle('on', state.zonesOn);
-
     if (state.limoZonesLoaded && state.limoZones) {
       if (state.zonesOn) state.zoneLayer.addLayer(state.limoZones);
       else state.zoneLayer.removeLayer(state.limoZones);
@@ -1154,112 +1056,72 @@
     el.classList.toggle('on', state.bkvOn);
 
     if (state.bkvOn && !(window.GTFS && window.GTFS.isReady && window.GTFS.isReady())) {
-      showStatus('BKV mód', 'GTFS háló nincs előkészítve (gtfs/graph.json).', 5000);
+      showStatus('BKV mód', 'GTFS háló nincs előkészítve (gtfs/graph.json).', 4500);
       state.bkvOn = false;
       el.classList.remove('on');
     }
     if (!silent) saveState();
   }
 
-  // ---------- Car marker icon ----------
+  // -------------- Rendering (selected cars only) --------------
   function carIcon(isActive=false) {
+    const ring = isActive ? `box-shadow:0 0 0 3px rgba(255,176,0,.45);` : '';
     const border = isActive ? 'border:2px solid rgba(255,176,0,.95);' : 'border:1px solid rgba(255,255,255,.18);';
-    const ring = isActive ? 'box-shadow:0 0 0 3px rgba(255,176,0,.25), 0 16px 38px rgba(0,0,0,.45);' : 'box-shadow:0 14px 34px rgba(0,0,0,.40);';
     return L.divIcon({
       className: '',
       html: `<div style="
         width:34px;height:34px;border-radius:14px;
         background:rgba(17,24,39,.92);
-        ${border}${ring}
+        ${border}
+        ${ring}
+        box-shadow:0 12px 28px rgba(0,0,0,.45);
         display:flex;align-items:center;justify-content:center;
       ">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="white" opacity=".92" aria-hidden="true">
-          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 6h10.29l1.04 3H5.81l1.04-3zM19 17H5v-6h14v6zm-12.5-1c.83 0 1.5-.67 1.5-1.5S7.33 13 6.5 13 5 13.67 5 14.5 5.67 16 6.5 16zm11 0c.83 0 1.5-.67 1.5-1.5S18.33 13 17.5 13 16 13.67 16 14.5 16.67 16 17.5 16z"/>
-        </svg>
+        <div style="
+          width:18px;height:18px;border-radius:7px;
+          background:rgba(255,255,255,.10);
+          display:flex;align-items:center;justify-content:center;
+          border:1px solid rgba(255,255,255,.12);
+        ">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="white" opacity=".9" aria-hidden="true">
+            <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 6h10.29l1.04 3H5.81l1.04-3zM19 17H5v-6h14v6z"/>
+          </svg>
+        </div>
       </div>`,
       iconSize: [34,34],
       iconAnchor: [17,17],
     });
   }
 
-  function shouldShowLabels(visibleCount) {
-    const z = state.map.getZoom();
-    if (state.activeCarId) return true;
-    if (visibleCount <= 15) return true;
-    return z >= 16 && visibleCount <= 40;
-  }
-
-  function getVisibleCarIds() {
-    // csak kijelöltek látszanak
-    if (state.selectedCars.size === 0) return [];
-    // aktív módban csak az aktív autó
-    if (state.activeCarId && state.selectedCars.has(state.activeCarId)) return [state.activeCarId];
-    return Array.from(state.selectedCars);
-  }
-
-  function renderCars() {
-    state.carsLayer.clearLayers();
+  function renderSelectionOnMap() {
+    state.carsCluster.clearLayers();
     state.labelLayer.clearLayers();
-    state.carMarkers.clear();
-    state.carLabelMarkers.clear();
 
-    renderMe(); // keep me marker
+    for (const carId of state.selectedCars) {
+      const car = state.carsById.get(carId);
+      if (!car) continue;
 
-    const visibleIds = getVisibleCarIds();
-    const showLabels = shouldShowLabels(visibleIds.length);
+      const isActive = (state.activeCarId === carId);
 
-    for (const id of visibleIds) {
-      const c = state.carsById.get(id);
-      if (!c) continue;
+      const marker = L.marker([car.lat, car.lng], { icon: carIcon(isActive), keyboard: false });
+      marker.on('click', () => setActiveCar(carId, true));
 
-      const isActive = (state.activeCarId === id);
-      const m = L.marker([c.lat, c.lng], { icon: carIcon(isActive), keyboard: false });
-      m._carId = id;
-      m.on('click', () => onCarClick(id));
-      state.carMarkers.set(id, m);
-      state.carsLayer.addLayer(m);
+      const label = L.marker([car.lat, car.lng], {
+        interactive: false,
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="plate-label">${escapeHtml(car.plate)}</div>`,
+          iconSize: [1,1],
+          iconAnchor: [-2, 26],
+        })
+      });
 
-      if (showLabels) {
-        const lab = L.marker([c.lat, c.lng], {
-          interactive: false,
-          icon: L.divIcon({
-            className: '',
-            html: `<div class="plate-label">${escapeHtml(c.plate)}</div>`,
-            iconSize: [1,1],
-            iconAnchor: [-2, 26],
-          })
-        });
-        state.carLabelMarkers.set(id, lab);
-        state.labelLayer.addLayer(lab);
-      }
-    }
-
-    setSubline(`Autók betöltve: ${state.cars.length} • Kijelölt: ${state.selectedCars.size}`);
-  }
-
-  function onCarClick(carId) {
-    // ha nincs kijelölve, kijelöljük
-    invalidatePlan('Kijelölések/aktív autó módosult.');
-
-    state.selectedCars.add(carId);
-    state.activeCarId = carId;
-    state.moveZone = null;
-    closeZoneEditor();
-
-    saveState();
-    renderCars();
-    renderHotZones();
-    renderCarList();
-    updateHudButtons();
-
-    const car = state.carsById.get(carId);
-    if (car) {
-      state.map.panTo([car.lat, car.lng], { animate: true });
-      showStatus('Hot zone mód', `${car.plate}: térképre katt = hot zone`, 2600);
+      state.carsCluster.addLayer(marker);
+      state.labelLayer.addLayer(label);
     }
   }
 
-  // ---------- Drawer ----------
+  // -------------- Drawer list --------------
   function toggleDrawer(show) {
     $('drawer').classList.toggle('show', !!show);
     if (show) renderCarList();
@@ -1271,15 +1133,18 @@
     list.innerHTML = '';
 
     const cars = state.cars
-      .filter(c => !q || c.plate.toLowerCase().includes(q) || c.model.toLowerCase().includes(q))
-      .sort((a,b) => {
-        const as = state.selectedCars.has(a.id) ? 0 : 1;
-        const bs = state.selectedCars.has(b.id) ? 0 : 1;
-        if (as !== bs) return as - bs;           // kijelöltek felül
-        return a.plate.localeCompare(b.plate);   // utána ABC
-      });
+      .filter(c => !q || c.plate.toLowerCase().includes(q) || (c.model||'').toLowerCase().includes(q));
 
-    $('drawerSub').textContent = `${cars.length} autó • kijelölt: ${state.selectedCars.size}`;
+    // sort: selected first, then plate
+    cars.sort((a,b) => {
+      const sa = state.selectedCars.has(a.id) ? 0 : 1;
+      const sb = state.selectedCars.has(b.id) ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return a.plate.localeCompare(b.plate);
+    });
+
+    const selectedCount = state.selectedCars.size;
+    $('drawerSub').textContent = `${cars.length} autó • kijelölt: ${selectedCount}`;
 
     for (const c of cars) {
       const zCount = (state.zonesByCar[c.id] || []).length;
@@ -1287,7 +1152,7 @@
       const isActive = (state.activeCarId === c.id);
 
       const item = document.createElement('div');
-      item.className = 'carItem' + (isActive ? ' active' : '');
+      item.className = 'carItem';
 
       const left = document.createElement('div');
       left.className = 'carLeft';
@@ -1298,36 +1163,31 @@
       chk.checked = isChecked;
 
       chk.addEventListener('change', () => {
-        invalidatePlan('Kijelölések módosultak.');
+        invalidatePlan('Módosítás történt (kijelölés).');
 
         if (chk.checked) {
           state.selectedCars.add(c.id);
         } else {
-          // ha nem aktív (nincs kijelölve), hot zone se legyen
+          // uncheck => remove zones too (hot zone only for selected)
           state.selectedCars.delete(c.id);
           delete state.zonesByCar[c.id];
           if (state.activeCarId === c.id) state.activeCarId = null;
-          state.moveZone = null;
-          closeZoneEditor();
+          closeHotZoneMenu();
         }
 
         saveState();
-        renderCars();
+        renderSelectionOnMap();
         renderHotZones();
         renderCarList();
-        updateHudButtons();
       });
 
       const main = document.createElement('div');
       main.className = 'carMain';
       main.innerHTML = `
-        <div class="plate">${escapeHtml(c.plate)}</div>
+        <div class="plate">${escapeHtml(c.plate)}${isActive ? ` <span style="color:var(--accent); font-weight:900;">• aktív</span>` : ``}</div>
         <div class="carMeta">${escapeHtml(c.model || '—')} • hot zone: ${zCount}</div>
-        ${zCount ? `<div class="tag">🔥 hot zone: <b>${zCount}</b></div>` : ``}
+        ${zCount ? `<div class="badgeHot">🔥 hot zone: <b>${zCount}</b></div>` : ``}
       `;
-
-      // katt a sorra -> aktívvá teszi (hotzone mód)
-      main.addEventListener('click', () => onCarClick(c.id));
 
       left.appendChild(chk);
       left.appendChild(main);
@@ -1342,13 +1202,23 @@
         state.map.setView([c.lat, c.lng], Math.max(state.map.getZoom(), 16), { animate: true });
       });
 
-      const bActive = document.createElement('button');
-      bActive.className = 'btn warn';
-      bActive.textContent = 'Hot zone';
-      bActive.addEventListener('click', () => onCarClick(c.id));
+      const bHz = document.createElement('button');
+      bHz.className = 'btn warn';
+      bHz.textContent = 'Hot zone';
+      bHz.addEventListener('click', () => {
+        // selecting hotzone mode implies it must be selected (visible)
+        invalidatePlan('Módosítás történt (aktív autó).');
+        state.selectedCars.add(c.id);
+        setActiveCar(c.id, false);
+        saveState();
+        renderSelectionOnMap();
+        renderHotZones();
+        renderCarList();
+        showStatus('Hot zone mód', `${c.plate} – koppints a térképre hot zone-hoz.`, 2400);
+      });
 
       btns.appendChild(bGo);
-      btns.appendChild(bActive);
+      btns.appendChild(bHz);
 
       item.appendChild(left);
       item.appendChild(btns);
@@ -1356,170 +1226,205 @@
     }
   }
 
-  // ---------- Hot zones ----------
+  function selectAllVisibleInList() {
+    invalidatePlan('Módosítás történt (kijelölés).');
+    for (const c of state.cars) state.selectedCars.add(c.id);
+    // hot zones remain only for selected, ok
+    saveState();
+    renderSelectionOnMap();
+    renderHotZones();
+    renderCarList();
+    showStatus('Kijelölés', 'Minden autó kijelölve.', 1600);
+  }
+
+  function clearSelections() {
+    invalidatePlan('Módosítás történt (törlés).');
+    state.selectedCars.clear();
+    state.activeCarId = null;
+    state.zonesByCar = {};
+    closeHotZoneMenu();
+    saveState();
+    renderSelectionOnMap();
+    renderHotZones();
+    renderCarList();
+    showStatus('Törlés', 'Kijelölések + hot zone-ok törölve.', 1800);
+  }
+
+  // -------------- Active car + hotzones --------------
+  function setActiveCar(carId, pan=true) {
+    if (!state.carsById.has(carId)) return;
+    invalidatePlan('Módosítás történt (aktív autó).');
+
+    state.activeCarId = carId;
+    state.selectedCars.add(carId); // active always visible
+    closeHotZoneMenu();
+
+    saveState();
+    renderSelectionOnMap();
+    renderHotZones();
+    renderCarList();
+
+    const car = state.carsById.get(carId);
+    if (pan && car) state.map.panTo([car.lat, car.lng], { animate: true });
+  }
+
+  function onMapClick(e) {
+    // moving hotzone?
+    if (state.hzMoving) {
+      invalidatePlan('Módosítás történt (hot zone mozgatás).');
+      const {carId, idx} = state.hzMoving;
+      state.hzMoving = null;
+
+      const zs = state.zonesByCar[carId] || [];
+      if (zs[idx]) {
+        zs[idx].lat = e.latlng.lat;
+        zs[idx].lng = e.latlng.lng;
+      }
+      saveState();
+      renderHotZones();
+      renderCarList();
+      showStatus('Hot zone áthelyezve', `${state.carsById.get(carId)?.plate || carId} – #${idx+1}`, 1800);
+      return;
+    }
+
+    // add hotzone only if there is an active selected car
+    if (!state.activeCarId) return;
+    const carId = state.activeCarId;
+
+    if (!state.selectedCars.has(carId)) return; // hotzone only for selected
+    if (!state.carsById.has(carId)) return;
+
+    invalidatePlan('Módosítás történt (hot zone hozzáadás).');
+
+    if (!state.zonesByCar[carId]) state.zonesByCar[carId] = [];
+    state.zonesByCar[carId].push({ lat: e.latlng.lat, lng: e.latlng.lng, createdAt: Date.now() });
+
+    saveState();
+    renderHotZones();
+    renderCarList();
+
+    const n = state.zonesByCar[carId].length;
+    showStatus('Hot zone hozzáadva', `${state.carsById.get(carId).plate} – #${n}`, 1700);
+  }
+
   function renderHotZones() {
     state.hotZoneLayer.clearLayers();
 
-    // aktív módban csak az aktív autó zónái
-    const ids = state.activeCarId ? [state.activeCarId] : Array.from(state.selectedCars);
+    // show hotzones ONLY for selected cars
+    for (const carId of state.selectedCars) {
+      const zones = state.zonesByCar[carId];
+      if (!zones || !zones.length) continue;
 
-    for (const carId of ids) {
-      if (!state.selectedCars.has(carId)) continue;
       const car = state.carsById.get(carId);
       if (!car) continue;
 
-      const zones = state.zonesByCar[carId] || [];
       zones.forEach((z, idx) => {
+        // circle (interactive)
         const circle = L.circle([z.lat, z.lng], {
           radius: state.hotRadius,
-          color: 'rgba(220,38,38,.80)',
+          color: 'rgba(220,38,38,.85)',
           fillColor: 'rgba(220,38,38,.18)',
           fillOpacity: 0.25,
           weight: 2,
           interactive: true
         });
-
-        circle.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          openZoneEditor(carId, idx);
-        });
-
+        circle._hz = { carId, idx };
+        circle.on('click', () => openHotZoneMenu(carId, idx));
         state.hotZoneLayer.addLayer(circle);
 
+        // label (not interactive)
+        const num = idx + 1;
+        const labelHtml = `<div class="target-label"><small>${escapeHtml(car.plate)}</small> #${num}</div>`;
         const marker = L.marker([z.lat, z.lng], {
-          icon: L.divIcon({
-            className: '',
-            html: `<div class="target-label"><small>${escapeHtml(car.plate)}</small> #${idx+1}</div>`,
-            iconSize: [1,1],
-            iconAnchor: [0, 18]
-          }),
-          interactive: true
+          icon: L.divIcon({ className:'', html: labelHtml, iconSize:[1,1], iconAnchor:[0,18] }),
+          interactive: false
         });
-
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          openZoneEditor(carId, idx);
-        });
-
         state.hotZoneLayer.addLayer(marker);
       });
     }
   }
 
-  function openZoneEditor(carId, zoneIndex) {
-    // kattintáskor: az adott autó legyen aktív, és lehessen törölni/mozgatni
-    invalidatePlan('Hot zone szerkesztés.');
+  function openHotZoneMenu(carId, idx) {
+    invalidatePlan('Módosítás történt (hot zone művelet).');
+    state.hzEditing = {carId, idx};
+    state.hzMoving = null;
 
-    state.selectedCars.add(carId);
+    // set active car to the zone's car (editing convenience)
     state.activeCarId = carId;
-    state.moveZone = null;
+    state.selectedCars.add(carId);
 
-    state.editingZone = { carId, zoneIndex };
     const car = state.carsById.get(carId);
-    const z = (state.zonesByCar[carId] || [])[zoneIndex];
-
-    $('zeTitle').textContent = `${car ? car.plate : '—'} • Hot zone #${zoneIndex+1}`;
-    $('zeSub').textContent = z ? `${z.lat.toFixed(5)}, ${z.lng.toFixed(5)}` : '—';
-    $('zoneEditor').classList.add('show');
+    $('hzTitle').textContent = `Hot zone • ${car?.plate || carId} #${idx+1}`;
+    $('hzSub').textContent = 'Válassz: törlés vagy áthelyezés (majd térképre katt).';
+    $('hzbar').classList.add('show');
 
     saveState();
-    renderCars();
+    renderSelectionOnMap();
     renderHotZones();
     renderCarList();
-    updateHudButtons();
   }
 
-  function closeZoneEditor() {
-    $('zoneEditor').classList.remove('show');
-    state.editingZone = null;
+  function closeHotZoneMenu() {
+    state.hzEditing = null;
+    state.hzMoving = null;
+    $('hzbar').classList.remove('show');
   }
 
-  // Map click: add zone to active car OR move zone if moveZone active
-  function onMapClick(e) {
-    if (state.moveZone) {
-      const { carId, zoneIndex } = state.moveZone;
-      const zs = state.zonesByCar[carId] || [];
-      if (zs[zoneIndex]) {
-        zs[zoneIndex].lat = e.latlng.lat;
-        zs[zoneIndex].lng = e.latlng.lng;
-        zs[zoneIndex].movedAt = Date.now();
-        state.zonesByCar[carId] = zs;
-      }
-      state.moveZone = null;
-      saveState();
-      renderHotZones();
-      renderCarList();
-      showStatus('Áthelyezve', `Hot zone #${zoneIndex+1} áthelyezve.`, 1800);
-      return;
-    }
+  function deleteEditingHotZone() {
+    if (!state.hzEditing) return;
+    const {carId, idx} = state.hzEditing;
 
-    if (!state.activeCarId) return;
-    if (!state.selectedCars.has(state.activeCarId)) return;
+    const zs = state.zonesByCar[carId] || [];
+    if (zs[idx]) zs.splice(idx, 1);
+    if (zs.length === 0) delete state.zonesByCar[carId];
 
-    invalidatePlan('Hot zone módosult.');
-
-    if (!state.zonesByCar[state.activeCarId]) state.zonesByCar[state.activeCarId] = [];
-    state.zonesByCar[state.activeCarId].push({ lat: e.latlng.lat, lng: e.latlng.lng, createdAt: Date.now() });
-
+    closeHotZoneMenu();
     saveState();
     renderHotZones();
     renderCarList();
-
-    const car = state.carsById.get(state.activeCarId);
-    showStatus('Hot zone hozzáadva', `${car ? car.plate : '—'} • #${state.zonesByCar[state.activeCarId].length}`, 1600);
+    showStatus('Hot zone törölve', `${state.carsById.get(carId)?.plate || carId} – #${idx+1}`, 1700);
   }
 
-  // ---------- Plan sheet behaviors ----------
-  function minimizeSheet() {
-    state.sheetMinimized = true;
-    $('sheet').classList.remove('show');
-    updateHudButtons();
-    showStatus('Csukva', 'A terv a térképen látszik, a panel el lett rejtve.', 1600);
-  }
-  function showSheet() {
-    state.sheetMinimized = false;
-    $('sheet').classList.add('show');
-    updateHudButtons();
+  function startMoveEditingHotZone() {
+    if (!state.hzEditing) return;
+    state.hzMoving = { ...state.hzEditing };
+    closeHotZoneMenu();
+    showStatus('Áthelyezés', 'Koppints az új helyre a térképen.', 2400);
   }
 
-  function updateHudButtons() {
-    $('btnExitActive').style.display = state.activeCarId ? 'inline-flex' : 'none';
-    $('btnShowPlan').style.display = (state.planActive && state.sheetMinimized) ? 'inline-flex' : 'none';
-  }
-
-  // ---------- Planning ----------
+  // -------------- Planning --------------
   function getCandidateCars() {
-    // csak kijelölt autók, amelyeknek van hotzone-ja
     const out = [];
     for (const id of state.selectedCars) {
       const c = state.carsById.get(id);
+      const zones = state.zonesByCar[id];
       if (!c) continue;
-      const zs = state.zonesByCar[id] || [];
-      if (zs.length) out.push(c);
+      if (!zones || !zones.length) continue;
+      out.push(c);
     }
     return out;
   }
 
-  async function planNow() {
+  async function planNow(forceFocus) {
     const candidates = getCandidateCars();
     if (!candidates.length) {
-      showStatus('Tervezés', 'Nincs kijelölt autó hot zone-nal.', 3000);
+      showStatus('Tervezés', 'Nincs hot zone-hoz rendelt (kijelölt) autó.', 3200);
+      clearPlan();
       return;
     }
     if (!state.me) {
-      showStatus('Tervezés', 'GPS pozíció még nincs. Engedélyezd a helyzetet.', 4000);
+      showStatus('Tervezés', 'GPS pozíció még nincs. Engedélyezd a helyzetet.', 4200);
       return;
     }
 
-    closeZoneEditor();
-    state.moveZone = null;
-
-    showStatus('Számolás…', 'Útvonaltervezés folyamatban (OSRM)…', 0);
+    // show sheet
     $('sheet').classList.add('show');
-    state.sheetMinimized = false;
+    $('sheet').classList.remove('collapsed');
     $('sheetTitle').textContent = 'Számolás…';
-    $('sheetSub').textContent = 'Kérlek várj…';
+    $('sheetSub').textContent = 'Útvonaltervezés…';
     $('steps').innerHTML = '';
+
+    showStatus('Számolás…', 'Útvonaltervezés folyamatban (OSRM / BKV)…', 0);
 
     const start = { lat: state.me.lat, lng: state.me.lng, name: 'Én' };
 
@@ -1530,16 +1435,19 @@
       state.planActive = true;
       state.plan = plan;
 
-      showPlanView(plan);
+      drawPlan(plan, { keepFocus: !forceFocus });
+      renderPlanSheet(plan);
       saveState();
-      updateHudButtons();
+
+      showStatus('Kész', `Legjobb sorrend: ${plan.steps.map(s => s.carPlate).join(' → ')}`, 2800);
     } catch (e) {
-      showStatus('Hiba', (e && e.message) ? e.message : String(e), 5000);
-      clearPlan({ silent: true });
+      clearPlan();
+      showStatus('Tervezés hiba', e?.message || String(e), 5000);
     }
   }
 
   async function pickNearestCar(start, cars) {
+    // quick OSRM foot table (start -> cars)
     try {
       const coords = [[start.lng, start.lat], ...cars.map(c => [c.lng, c.lat])];
       const res = await osrmTable('foot', coords, [0], cars.map((_,i)=>i+1));
@@ -1551,6 +1459,7 @@
       }
       if (best) return best.car;
     } catch {}
+    // fallback haversine
     let best = cars[0], bestM = Infinity;
     for (const c of cars) {
       const m = haversineM(start.lat, start.lng, c.lat, c.lng);
@@ -1560,10 +1469,11 @@
   }
 
   async function solvePlan(start, cars, startCar) {
+    // same logic as before: each car serviced once to one of its hotzones
     const carList = [startCar, ...cars.filter(c => c.id !== startCar.id)];
     const n = carList.length;
 
-    const zonesNodes = []; // {carIdx, zoneIdx, lat,lng, id}
+    const zonesNodes = [];
     for (let i=0;i<n;i++) {
       const c = carList[i];
       const zs = (state.zonesByCar[c.id] || []).map((z, idx) => ({
@@ -1576,21 +1486,7 @@
     }
     const zonesForCar = (ci) => zonesNodes.filter(z => z.carIdx === ci);
 
-    const coords = [
-      [start.lng, start.lat],
-      ...zonesNodes.map(z => [z.lng, z.lat]),
-      ...carList.map(c => [c.lng, c.lat]),
-    ];
-    const coordZoneOffset = 1;
-    const coordCarOffset = 1 + zonesNodes.length;
-
-    let footTable = null;
-    try {
-      const origins = [0, ...zonesNodes.map((_,i)=>coordZoneOffset+i)];
-      const dests = carList.map((_,i)=>coordCarOffset+i);
-      footTable = await osrmTable('foot', coords, origins, dests);
-    } catch { footTable = null; }
-
+    // precompute driving cost from car->its zones
     const driveCost = new Map();
     for (let ci=0; ci<n; ci++) {
       const zs = zonesForCar(ci);
@@ -1613,69 +1509,10 @@
       }
     }
 
-    function coordToLatLng(coordIdx) {
-      if (coordIdx === 0) return { lat: start.lat, lng: start.lng };
-      const z = zonesNodes[coordIdx - 1];
-      return { lat: z.lat, lng: z.lng };
-    }
-
-    function footDuration(fromCoordIdx, carIdx) {
-      if (footTable) {
-        const rowIndex = fromCoordIdx; // origins = [0,1,2,...]
-        const d = footTable.durations[rowIndex]?.[carIdx];
-        const dist = footTable.distances ? footTable.distances[rowIndex]?.[carIdx] : null;
-        if (d != null) return { duration: d, distance: dist };
-      }
-      const from = coordToLatLng(fromCoordIdx);
-      const m = haversineM(from.lat, from.lng, carList[carIdx].lat, carList[carIdx].lng);
-      return { duration: (m/1000)/(5/60/60), distance: m };
-    }
-
-    // Exact DP up to 8 cars else greedy
+    // exact DP limit
     const EXACT_LIMIT = 8;
     if (n > EXACT_LIMIT) {
-      const steps = [];
-      const done = new Set();
-      let lastCoordIdx = 0;
-
-      // first car forced = 0
-      done.add(0);
-      {
-        const zs = zonesForCar(0);
-        let best = null;
-        for (const z of zs) {
-          const w = footDuration(0,0);
-          const d = driveCost.get(`0|${z.id}`);
-          if (!d) continue;
-          const cost = w.duration + d.duration;
-          if (!best || cost < best.cost) best = { z, w, d, cost };
-        }
-        const coordIdx = 1 + zonesNodes.findIndex(x => x.id === best.z.id);
-        steps.push({ carIdx:0, zoneId: best.z.id, fromCoordIdx: 0, walk: best.w, drive: best.d });
-        lastCoordIdx = coordIdx;
-      }
-
-      while (done.size < n) {
-        let best = null;
-        for (let ci=0; ci<n; ci++) {
-          if (done.has(ci)) continue;
-          const zs = zonesForCar(ci);
-          for (const z of zs) {
-            const w = footDuration(lastCoordIdx, ci);
-            const d = driveCost.get(`${ci}|${z.id}`);
-            if (!d) continue;
-            const cost = w.duration + d.duration;
-            if (!best || cost < best.cost) best = { ci, z, w, d, cost };
-          }
-        }
-        if (!best) break;
-        done.add(best.ci);
-        const coordIdx = 1 + zonesNodes.findIndex(x => x.id === best.z.id);
-        steps.push({ carIdx: best.ci, zoneId: best.z.id, fromCoordIdx: lastCoordIdx, walk: best.w, drive: best.d });
-        lastCoordIdx = coordIdx;
-      }
-
-      return buildPlanDetails(start, carList, zonesNodes, steps);
+      return greedyPlan(start, carList, zonesNodes, zonesForCar, driveCost);
     }
 
     const zoneCoordIndexById = new Map();
@@ -1701,24 +1538,31 @@
 
         const zs = zonesForCar(ci);
         for (const z of zs) {
-          const w = footDuration(lastCoordIdx, ci);
-          const d = driveCost.get(`${ci}|${z.id}`);
-          if (!d || d.duration == null) continue;
+          const coordIdx = zoneCoordIndexById.get(z.id);
 
-          const stepCost = w.duration + d.duration;
-          const nextCoordIdx = zoneCoordIndexById.get(z.id);
-          const next = await solve(mask | (1<<ci), nextCoordIdx);
+          const from = coordToLatLng(lastCoordIdx, start, zonesNodes);
+          const toCar = { lat: carList[ci].lat, lng: carList[ci].lng };
+
+          // walk/bkv estimate for DP: use haversine 5km/h (fast)
+          const m = haversineM(from.lat, from.lng, toCar.lat, toCar.lng);
+          const walkDur = (m/1000)/(5/60/60);
+
+          const drive = driveCost.get(`${ci}|${z.id}`);
+          if (!drive || drive.duration == null) continue;
+
+          const stepCost = walkDur + drive.duration;
+
+          const next = await solve(mask | (1<<ci), coordIdx);
           const total = stepCost + next.cost;
 
           if (total < best.cost) {
             best = {
               cost: total,
               path: [{
+                type: 'service',
                 carIdx: ci,
                 zoneId: z.id,
-                fromCoordIdx: lastCoordIdx,
-                walk: w,
-                drive: d
+                fromCoordIdx: lastCoordIdx
               }, ...next.path]
             };
           }
@@ -1729,34 +1573,92 @@
       return best;
     }
 
-    // first car fixed idx0
+    // first step fixed to car 0
     const zs0 = zonesForCar(0);
-    let bestOverall = { cost: Infinity, steps: [] };
+    let bestOverall = { cost: Infinity, steps: null };
 
     for (const z0 of zs0) {
-      const w0 = footDuration(0, 0);
-      const d0 = driveCost.get(`0|${z0.id}`);
-      if (!d0 || d0.duration == null) continue;
+      const from = { lat: start.lat, lng: start.lng };
+      const toCar = { lat: carList[0].lat, lng: carList[0].lng };
+      const m = haversineM(from.lat, from.lng, toCar.lat, toCar.lng);
+      const walkDur = (m/1000)/(5/60/60);
+
+      const drive0 = driveCost.get(`0|${z0.id}`);
+      if (!drive0 || drive0.duration == null) continue;
 
       const coordIdx0 = zoneCoordIndexById.get(z0.id);
       const next = await solve(1<<0, coordIdx0);
-      const total = w0.duration + d0.duration + next.cost;
+      const total = walkDur + drive0.duration + next.cost;
 
       if (total < bestOverall.cost) {
         bestOverall = {
           cost: total,
           steps: [{
+            type:'service',
             carIdx: 0,
             zoneId: z0.id,
-            fromCoordIdx: 0,
-            walk: w0,
-            drive: d0
+            fromCoordIdx: 0
           }, ...next.path]
         };
       }
     }
 
-    return buildPlanDetails(start, carList, zonesNodes, bestOverall.steps);
+    // build plan details with real routing geometries
+    return buildPlanDetails(start, carList, zonesNodes, bestOverall.steps || []);
+  }
+
+  async function greedyPlan(start, carList, zonesNodes, zonesForCar, driveCost) {
+    const n = carList.length;
+    const done = new Set();
+    const steps = [];
+    let lastCoordIdx = 0;
+
+    // first car 0
+    done.add(0);
+    {
+      const zs = zonesForCar(0);
+      let bestZ = zs[0], bestCost = Infinity;
+      for (const z of zs) {
+        const from = coordToLatLng(0, start, zonesNodes);
+        const m = haversineM(from.lat, from.lng, carList[0].lat, carList[0].lng);
+        const walkDur = (m/1000)/(5/60/60);
+        const drive = driveCost.get(`0|${z.id}`) || { duration: Infinity };
+        const cost = walkDur + drive.duration;
+        if (cost < bestCost) { bestCost = cost; bestZ = z; }
+      }
+      const coordIdx = 1 + zonesNodes.findIndex(x => x.id === bestZ.id);
+      steps.push({ type:'service', carIdx:0, zoneId: bestZ.id, fromCoordIdx: 0 });
+      lastCoordIdx = coordIdx;
+    }
+
+    while (done.size < n) {
+      let best = null;
+      for (let ci=0; ci<n; ci++) {
+        if (done.has(ci)) continue;
+        const zs = zonesForCar(ci);
+        for (const z of zs) {
+          const from = coordToLatLng(lastCoordIdx, start, zonesNodes);
+          const m = haversineM(from.lat, from.lng, carList[ci].lat, carList[ci].lng);
+          const walkDur = (m/1000)/(5/60/60);
+          const drive = driveCost.get(`${ci}|${z.id}`) || { duration: Infinity };
+          const cost = walkDur + drive.duration;
+          if (!best || cost < best.cost) best = { ci, z, cost };
+        }
+      }
+      if (!best) break;
+      done.add(best.ci);
+      const coordIdx = 1 + zonesNodes.findIndex(x => x.id === best.z.id);
+      steps.push({ type:'service', carIdx: best.ci, zoneId: best.z.id, fromCoordIdx: lastCoordIdx });
+      lastCoordIdx = coordIdx;
+    }
+
+    return buildPlanDetails(start, carList, zonesNodes, steps);
+  }
+
+  function coordToLatLng(coordIdx, start, zonesNodes) {
+    if (coordIdx === 0) return { lat: start.lat, lng: start.lng };
+    const z = zonesNodes[coordIdx - 1];
+    return { lat: z.lat, lng: z.lng };
   }
 
   function findZoneById(zonesNodes, id) {
@@ -1772,15 +1674,12 @@
       const car = carList[s.carIdx];
       const zone = findZoneById(zonesNodes, s.zoneId);
 
-      const from = (s.fromCoordIdx === 0)
-        ? { lat: start.lat, lng: start.lng }
-        : { lat: zonesNodes[s.fromCoordIdx - 1].lat, lng: zonesNodes[s.fromCoordIdx - 1].lng };
-
+      const from = coordToLatLng(s.fromCoordIdx, start, zonesNodes);
       const toCar = { lat: car.lat, lng: car.lng };
       const toZone = { lat: zone.lat, lng: zone.lng };
 
-      const walkLeg = await routeLeg('walk', from, toCar);
-      const driveLeg = await routeLeg('drive', toCar, toZone);
+      const walkLeg = await routeLegWalkOrBkv(from, toCar);
+      const driveLeg = await routeLegDrive(toCar, toZone);
 
       totalWalk += walkLeg.duration;
       totalDrive += driveLeg.duration;
@@ -1792,71 +1691,71 @@
         carModel: car.model,
         zoneNo: Number(zone.id.split('#')[1] || 1),
         walk: walkLeg,
-        drive: driveLeg,
+        drive: driveLeg
       });
     }
 
     return {
       carsUsed: Array.from(new Set(planSteps.map(p => p.carId))),
       steps: planSteps,
-      summary: {
-        total: totalWalk + totalDrive,
-        walk: totalWalk,
-        drive: totalDrive,
-      }
+      summary: { total: totalWalk + totalDrive, walk: totalWalk, drive: totalDrive }
     };
   }
 
-  async function routeLeg(kind, from, to) {
-    if (kind === 'walk' && state.bkvOn && window.GTFS && window.GTFS.isReady && window.GTFS.isReady()) {
+  // -------------- Routing legs --------------
+  async function routeLegWalkOrBkv(from, to) {
+    // try BKV if enabled and GTFS ready, only if it's meaningfully better
+    if (state.bkvOn && window.GTFS && window.GTFS.isReady && window.GTFS.isReady()) {
       try {
         const alt = await window.GTFS.plan(from, to, { maxWalkToStopM: CFG.TRANSIT_MAX_WALK_TO_STOP_M });
-        const m = haversineM(from.lat, from.lng, to.lat, to.lng);
-        const approxWalk = (m/1000)/(5/60/60);
+        if (alt && alt.totalDuration && alt.meta && alt.meta.boardStop && alt.meta.alightStop) {
+          // compare against quick walk approx (5 km/h)
+          const m = haversineM(from.lat, from.lng, to.lat, to.lng);
+          const approxWalk = (m/1000)/(5/60/60);
+          if (alt.totalDuration < approxWalk * 0.90) {
+            // build geometry snapped to roads:
+            const board = { lat: alt.meta.boardStop.lat, lng: alt.meta.boardStop.lng };
+            const alight = { lat: alt.meta.alightStop.lat, lng: alt.meta.alightStop.lng };
 
-        if (alt && alt.totalDuration && alt.totalDuration < approxWalk * 0.90) {
-          // geometry: OSRM "car" multi-route a via pontokra, hogy útra illeszkedjen
-          let geom = alt.viaPoints;
-          try {
-            geom = await osrmRouteMulti('car', alt.viaPoints);
-          } catch {
-            // marad a viaPoints (törött vonal), ha az OSRM multi-route nem megy
+            const seg1 = await osrmRoute('foot', from, board);
+            const seg2 = await osrmRoute('car', board, alight); // transit snapped via car profile
+            const seg3 = await osrmRoute('foot', alight, to);
+
+            const geom = []
+              .concat(seg1.geometry)
+              .concat(seg2.geometry.slice(1))
+              .concat(seg3.geometry.slice(1));
+
+            const dist = (seg1.distance ?? 0) + (seg2.distance ?? 0) + (seg3.distance ?? 0);
+
+            const routes = (alt.meta.routesUsed && alt.meta.routesUsed.length) ? alt.meta.routesUsed.join(', ') : 'BKV';
+
+            return {
+              mode: 'bkv',
+              duration: alt.totalDuration,
+              distance: dist || null,
+              geometry: geom,
+              meta: {
+                routes,
+                board: alt.meta.boardStop.name,
+                alight: alt.meta.alightStop.name
+              }
+            };
           }
-
-          return {
-            mode: 'bkv',
-            duration: alt.totalDuration,
-            distance: null,
-            geometry: geom,
-            ascent: null,
-            descent: null,
-            meta: alt.meta
-          };
         }
-      } catch {}
+      } catch { /* ignore */ }
     }
 
-    const profile = (kind === 'walk') ? 'foot' : 'car';
-    const res = await osrmRoute(profile, from, to);
-
-    let ascent = null, descent = null;
-    if (kind === 'walk') {
-      const elev = await getElevationStats(res.geometry);
-      ascent = elev ? elev.ascent : null;
-      descent = elev ? elev.descent : null;
-    }
-
-    return {
-      mode: profile,
-      duration: res.duration,
-      distance: res.distance,
-      geometry: res.geometry,
-      ascent, descent,
-      meta: null
-    };
+    const res = await osrmRoute('foot', from, to);
+    return { mode: 'foot', duration: res.duration, distance: res.distance, geometry: res.geometry, meta: null };
   }
 
-  // ---------- OSRM helpers ----------
+  async function routeLegDrive(from, to) {
+    const res = await osrmRoute('car', from, to);
+    return { mode: 'car', duration: res.duration, distance: res.distance, geometry: res.geometry, meta: null };
+  }
+
+  // -------------- OSRM helpers --------------
   function osrmKey(profile, from, to) {
     return `${profile}|${from.lat.toFixed(6)},${from.lng.toFixed(6)}|${to.lat.toFixed(6)},${to.lng.toFixed(6)}`;
   }
@@ -1865,7 +1764,7 @@
     const key = osrmKey(profile, from, to);
     if (state.osrmCache.has(key)) return state.osrmCache.get(key);
 
-    const baseUrls = profile === 'foot' ? CFG.OSRM_FOOT : CFG.OSRM_CAR;
+    const baseUrls = (profile === 'foot') ? CFG.OSRM_FOOT : CFG.OSRM_CAR;
     let lastErr = null;
 
     for (const base of baseUrls) {
@@ -1890,41 +1789,8 @@
     throw lastErr || new Error('OSRM route failed');
   }
 
-  async function osrmRouteMulti(profile, points) {
-    // points: [{lat,lng}, ...] (min 2)
-    if (!points || points.length < 2) throw new Error('multi: too few points');
-    const baseUrls = profile === 'foot' ? CFG.OSRM_FOOT : CFG.OSRM_CAR;
-
-    // limit: OSRM is fine with dozens, de ne legyen túl sok
-    const maxPts = 22;
-    let pts = points;
-    if (points.length > maxPts) {
-      const step = Math.ceil(points.length / maxPts);
-      const reduced = [];
-      for (let i=0;i<points.length;i+=step) reduced.push(points[i]);
-      if (reduced[reduced.length-1] !== points[points.length-1]) reduced.push(points[points.length-1]);
-      pts = reduced;
-    }
-
-    const coordsStr = pts.map(p => `${p.lng},${p.lat}`).join(';');
-
-    let lastErr = null;
-    for (const base of baseUrls) {
-      try {
-        const url = `${base}/route/v1/${profile}/${coordsStr}?overview=full&geometries=geojson&steps=false&alternatives=false`;
-        const r = await fetch(url, { cache: 'no-store' });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await r.json();
-        if (!j.routes || !j.routes[0]) throw new Error('no routes');
-        const route = j.routes[0];
-        return route.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-      } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('OSRM multi-route failed');
-  }
-
   async function osrmTable(profile, coords, origins, destinations) {
-    const baseUrls = profile === 'foot' ? CFG.OSRM_FOOT : CFG.OSRM_CAR;
+    const baseUrls = (profile === 'foot') ? CFG.OSRM_FOOT : CFG.OSRM_CAR;
     const coordsStr = coords.map(c => `${c[0]},${c[1]}`).join(';');
     const originsStr = origins.join(';');
     const destStr = destinations.join(';');
@@ -1943,111 +1809,63 @@
     throw lastErr || new Error('OSRM table failed');
   }
 
-  // ---------- Elevation (best-effort) ----------
-  async function getElevationStats(latlngs) {
-    if (!latlngs || latlngs.length < 2) return null;
-
-    const key = latlngs.length + '|' +
-      latlngs[0].lat.toFixed(5)+','+latlngs[0].lng.toFixed(5)+'|' +
-      latlngs[Math.floor(latlngs.length/2)].lat.toFixed(5)+','+latlngs[Math.floor(latlngs.length/2)].lng.toFixed(5)+'|' +
-      latlngs[latlngs.length-1].lat.toFixed(5)+','+latlngs[latlngs.length-1].lng.toFixed(5);
-
-    if (state.elevationCache.has(key)) return state.elevationCache.get(key);
-
-    const N = Math.min(50, latlngs.length);
-    const pts = [];
-    for (let i=0; i<N; i++) {
-      const idx = Math.floor(i * (latlngs.length-1) / (N-1));
-      pts.push(latlngs[idx]);
-    }
-
-    const loc = pts.map(p => `${p.lat},${p.lng}`).join('|');
-    const url = `https://api.opentopodata.org/v1/aster30m?locations=${encodeURIComponent(loc)}`;
-
-    try {
-      const r = await fetch(url, { cache: 'force-cache' });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      if (!j || !j.results) throw new Error('bad json');
-      const elevs = j.results.map(x => x.elevation).filter(x => typeof x === 'number');
-      if (elevs.length < 2) return null;
-
-      let ascent = 0, descent = 0;
-      for (let i=1;i<elevs.length;i++){
-        const d = elevs[i]-elevs[i-1];
-        if (d > 0) ascent += d;
-        else descent += -d;
-      }
-      const out = { ascent: Math.round(ascent), descent: Math.round(descent) };
-      state.elevationCache.set(key, out);
-      return out;
-    } catch {
-      return null;
-    }
-  }
-
-  // ---------- Show plan ----------
-  function clearPlan({ silent=false } = {}) {
+  // -------------- Plan rendering --------------
+  function clearPlan() {
     state.planActive = false;
     state.plan = null;
     state.routeLayer.clearLayers();
-    state.sheetMinimized = false;
     $('sheet').classList.remove('show');
-    updateHudButtons();
-    if (!silent) showStatus('Bezárva', 'A terv törölve.', 1400);
+    $('sheet').classList.remove('collapsed');
+    $('statusbar').classList.remove('show');
+    saveState();
   }
 
-  function showPlanView(plan) {
+  function togglePlanCollapse() {
+    if (!$('sheet').classList.contains('show')) return;
+    $('sheet').classList.toggle('collapsed');
+    $('btnCollapse').textContent = $('sheet').classList.contains('collapsed') ? 'Nyit' : 'Csuk';
+  }
+
+  function drawPlan(plan, opts={}) {
     state.routeLayer.clearLayers();
 
-    // hide sheet minimized? keep as is
-    $('sheet').classList.add('show');
-    state.sheetMinimized = false;
-
-    $('sheetTitle').textContent = 'Kész';
-    $('sheetSub').textContent = `Össz-idő: ${fmtMin(plan.summary.total)} (🚶 ${fmtMin(plan.summary.walk)} + 🚗 ${fmtMin(plan.summary.drive)})`;
-
     const allLatLngs = [];
-    for (const step of plan.steps) {
-      // WALK/BKV
-      const w = step.walk;
 
-      // színek + szaggatások
-      let wColor = 'rgba(250,204,21,.95)';     // gyalog: sárga
-      let wDash = '10 14';
-      if (w.mode === 'bkv') {
-        wColor = 'rgba(29,78,216,.95)';        // bkv: sötétkék
-        wDash = '12 16';
-      }
+    for (const step of plan.steps) {
+      // WALK/BKV leg styling:
+      const w = step.walk;
+      const isBkv = (w.mode === 'bkv');
 
       const wLine = L.polyline(w.geometry.map(p => [p.lat, p.lng]), {
-        color: wColor,
-        weight: 7,
+        color: isBkv ? '#1e3a8a' : '#facc15',    // dark blue vs yellow
+        weight: 6,
         opacity: 0.95,
-        dashArray: wDash,
-        lineCap: 'round',
-        lineJoin: 'round'
+        dashArray: '10 10'
       });
       state.routeLayer.addLayer(wLine);
       allLatLngs.push(...w.geometry.map(p => [p.lat, p.lng]));
 
-      // DRIVE (autó)
+      // CAR leg styling:
       const d = step.drive;
       const dLine = L.polyline(d.geometry.map(p => [p.lat, p.lng]), {
-        color: 'rgba(239,68,68,.95)',           // piros
+        color: '#ef4444',
         weight: 7,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round'
+        opacity: 0.92
       });
       state.routeLayer.addLayer(dLine);
       allLatLngs.push(...d.geometry.map(p => [p.lat, p.lng]));
     }
 
-    if (allLatLngs.length) {
+    if (allLatLngs.length && !opts.keepFocus) {
       const b = L.latLngBounds(allLatLngs);
       state.map.fitBounds(b.pad(0.15), { animate: true });
     }
+  }
+
+  function renderPlanSheet(plan) {
+    $('sheet').classList.add('show');
+    $('sheetTitle').textContent = 'Kész';
+    $('sheetSub').textContent = `Össz-idő: ${fmtMin(plan.summary.total)} (🚶/BKV ${fmtMin(plan.summary.walk)} + 🚗 ${fmtMin(plan.summary.drive)})`;
 
     const stepsEl = $('steps');
     stepsEl.innerHTML = '';
@@ -2059,38 +1877,38 @@
       const walk = s.walk;
       const drive = s.drive;
 
-      // BKV meta: vonalak + felszálló/leszálló
-      let bkvExtra = '';
-      if (walk.mode === 'bkv') {
-        const routes = (walk.meta && Array.isArray(walk.meta.routes) && walk.meta.routes.length)
-          ? walk.meta.routes.join(', ')
-          : '—';
-        const board = walk.meta?.boardStop ?? '—';
-        const alight = walk.meta?.alightStop ?? '—';
-        bkvExtra = `<br>Vonal: <b>${escapeHtml(routes)}</b> • Felszállás: <b>${escapeHtml(board)}</b> • Leszállás: <b>${escapeHtml(alight)}</b>`;
-      }
+      const walkLine = (walk.mode === 'bkv')
+        ? `BKV: ${fmtMin(walk.duration)}${walk.distance != null ? ` • ${fmtKm(walk.distance)}` : ''}`
+        : `Gyalog: ${fmtMin(walk.duration)}${walk.distance != null ? ` • ${fmtKm(walk.distance)}` : ''}`;
 
-      const asc = (walk.ascent != null && walk.descent != null) ? ` • ${walk.ascent} m ↗ ${walk.descent} m ↘` : '';
-      const walkLabel = (walk.mode === 'bkv') ? 'BKV' : 'Gyalog';
-      const walkMeta = `${walkLabel}: ${fmtMin(walk.duration)} • ${fmtKm(walk.distance)}${asc}${bkvExtra}`;
-      const driveMeta = `Autó: ${fmtMin(drive.duration)} • ${fmtKm(drive.distance)}`;
+      const bkvMeta = (walk.mode === 'bkv' && walk.meta)
+        ? `<br>Vonal: ${escapeHtml(walk.meta.routes || 'BKV')} • Felszállás: ${escapeHtml(walk.meta.board || '—')} • Leszállás: ${escapeHtml(walk.meta.alight || '—')}`
+        : '';
+
+      const driveLine = `Autó: ${fmtMin(drive.duration)}${drive.distance != null ? ` • ${fmtKm(drive.distance)}` : ''}`;
 
       el.innerHTML = `
         <div class="badge">${i+1}</div>
         <div style="min-width:0;">
           <div class="stepTitle">${escapeHtml(s.carPlate)} → Hot zone #${s.zoneNo}</div>
-          <div class="stepMeta">${walkMeta}<br>${driveMeta}</div>
+          <div class="stepMeta">${walkLine}${bkvMeta}<br>${driveLine}</div>
         </div>
       `;
       stepsEl.appendChild(el);
     });
-
-    showStatus('Kész', `Sorrend: ${plan.steps.map(s => s.carPlate).join(' → ')}`, 2800);
   }
 
-  // ---------- Boot ----------
-  initMap();
+  // -------------- Utils --------------
+  function haversineM(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const toRad = (d) => d*Math.PI/180;
+    const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(a));
+  }
 
+  // boot
+  initMap();
 })();
   </script>
 </body>
